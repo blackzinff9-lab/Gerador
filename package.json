@@ -1,0 +1,24 @@
+{
+  "name": "engajai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gerador gratuito de títulos, hashtags, descrições e estilo de edição virais para YouTube, TikTok e Instagram Reels.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "@tobyg74/tiktok-api-dl": "^1.3.7",
+    "next": "^15.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14"
+  }
+}

@@ -1,1 +1,203 @@
-# Gerador
+# ENGAJAÍ
+
+**Gerador gratuito de títulos, hashtags, descrições e estilos de edição virais para YouTube, TikTok e Instagram Reels.**
+
+Você digita o tema do seu vídeo e escolhe a rede social — o ENGAJAÍ devolve ideias virais específicas e coerentes (não genéricas), usando tendências reais do YouTube/TikTok combinadas com IA.
+
+100% gratuito para rodar: sem APIs pagas, sem cartão de crédito.
+
+---
+
+## Como funciona
+
+1. Você escolhe a rede (YouTube, TikTok, Reels ou Todas).
+2. Descreve o tema do vídeo em texto livre (ex: "como fazer bolo de chocolate").
+3. O ENGAJAÍ busca tendências reais do YouTube e do TikTok, envia como contexto para o Gemini 2.5 Flash e devolve:
+   - **10–15 hashtags** em alta por plataforma
+   - **Melhor título viral** específico por plataforma
+   - **Melhor descrição** coerente com título e hashtags
+   - **Estilo de edição recomendado** (ritmo, gancho, cortes, música, duração e dicas)
+
+---
+
+## Stack (tudo grátis)
+
+| Camada | Tecnologia |
+|---|---|
+| Frontend + Backend | Next.js 15 (App Router, JavaScript) |
+| IA | Gemini 2.5 Flash via `@google/genai` (free tier: 500 req/dia) |
+| YouTube | YouTube Data API v3 (free tier: 10k unidades/dia) |
+| TikTok | `@tobyg74/tiktok-api-dl` (scraping, fail-soft) |
+| Instagram | Somente IA (scrapers Instagram não são confiáveis) |
+| Estilo | Tailwind CSS |
+| Hospedagem | Vercel Hobby (grátis) |
+| Cache | Map em memória (TTL 6–24h) |
+
+---
+
+## Como rodar na sua máquina
+
+### 1. Instalar Node.js (uma vez)
+
+Baixe em https://nodejs.org → **versão LTS** (20.x ou 22.x) → instale com padrões.
+
+Depois, abra o terminal (Mac/Linux) ou PowerShell (Windows) e confirme:
+
+```bash
+node -v
+npm -v
+```
+
+Ambos devem imprimir um número de versão.
+
+### 2. Instalar as dependências do projeto
+
+No terminal, dentro da pasta do projeto:
+
+```bash
+npm install
+```
+
+### 3. Pegar as chaves de API (grátis)
+
+**Chave do Gemini:**
+1. Vá em https://aistudio.google.com/apikey
+2. Entre com sua conta Google.
+3. Clique em **Create API key** → **Create API key in new project**.
+4. Copie a chave (começa com `AIza...`).
+
+**Chave do YouTube Data API v3:**
+1. Vá em https://console.cloud.google.com
+2. No menu superior, crie um novo projeto (nome: `ENGAJAI`).
+3. Na barra de busca, procure por **"YouTube Data API v3"** → clique **Enable**.
+4. Vá em **APIs & Services → Credentials → Create Credentials → API key**.
+5. Copie a chave.
+6. (Recomendado) clique **Restrict key** e restrinja à **YouTube Data API v3**.
+
+### 4. Criar o arquivo `.env.local`
+
+Na raiz do projeto, copie o exemplo e preencha:
+
+```bash
+cp .env.example .env.local
+```
+
+Abra `.env.local` e cole as duas chaves:
+
+```
+GEMINI_API_KEY=AIza...sua_chave_gemini
+YOUTUBE_API_KEY=AIza...sua_chave_youtube
+```
+
+### 5. Rodar localmente
+
+```bash
+npm run dev
+```
+
+Abra http://localhost:3000 no navegador.
+
+---
+
+## Como fazer o deploy grátis no Vercel
+
+### 1. Crie uma conta no GitHub
+
+Em https://github.com, crie uma conta grátis se ainda não tem.
+
+### 2. Coloque o projeto no GitHub
+
+No terminal, dentro do projeto:
+
+```bash
+git add .
+git commit -m "primeiro commit"
+git branch -M main
+git remote add origin https://github.com/SEU_USUARIO/engajai.git
+git push -u origin main
+```
+
+> Substitua `SEU_USUARIO` pelo seu usuário do GitHub. O repositório pode ser público ou privado.
+
+### 3. Deploy no Vercel
+
+1. Vá em https://vercel.com → entre com sua conta do GitHub.
+2. Clique **Add New → Project**.
+3. Selecione o repositório `engajai` → clique **Import**.
+4. **ANTES de clicar em Deploy**, expanda **Environment Variables** e adicione:
+   - `GEMINI_API_KEY` = sua chave do Gemini
+   - `YOUTUBE_API_KEY` = sua chave do YouTube
+5. Clique **Deploy**. Em 1–2 minutos, o Vercel te dá uma URL pública.
+
+### 4. Atualizações futuras
+
+Toda vez que mudar algo no código:
+
+```bash
+git add .
+git commit -m "o que mudou"
+git push
+```
+
+O Vercel detecta o push e publica a nova versão em ~1 minuto.
+
+---
+
+## Limites do plano grátis (resumo)
+
+| Serviço | Limite |
+|---|---|
+| Gemini 2.5 Flash | 500 requests/dia, 10/min |
+| YouTube Data API v3 | 10.000 unidades/dia (cada busca por tema custa ~100) |
+| Vercel Hobby | ~150k invocações/mês, 100 GB tráfego |
+
+O ENGAJAÍ usa **cache agressivo** (6–24h) para ficar muito dentro desses limites, mesmo com centenas de usuários por dia.
+
+---
+
+## Estrutura do projeto
+
+```
+src/
+├── app/
+│   ├── layout.js              # <html>, fontes, metadata
+│   ├── page.js                # página única (form + resultado)
+│   ├── globals.css            # Tailwind + utilitários
+│   └── api/generate/route.js  # BACKEND — orquestração
+├── components/                # UI (form, cards, botões)
+└── lib/                       # lógica (gemini, youtube, tiktok, cache…)
+```
+
+Arquivos mais importantes:
+
+- `src/app/api/generate/route.js` — fluxo principal do backend
+- `src/lib/gemini.js` — chamada do Gemini com JSON schema
+- `src/lib/prompts.js` — system prompt + construtor de prompt
+- `src/lib/schema.js` — schema de resposta estruturada
+
+---
+
+## Tratamento de falhas (fail-soft)
+
+- **YouTube falha** → app continua; Gemini gera só com conhecimento próprio.
+- **TikTok scraper quebra** (esperado eventualmente) → mesmo comportamento.
+- **Gemini falha** → única falha irrecuperável, mostra mensagem amigável em pt-BR.
+
+---
+
+## Roadmap de monetização (futuro)
+
+O código já tem comentários `TODO` marcando onde plugar cada coisa:
+
+- Banner AdSense (em `src/app/page.js`)
+- Gate "Pro" na API (em `src/app/api/generate/route.js`)
+- Links afiliados (em `src/components/ResultCard.js`)
+- Newsletter (em `src/components/Footer.js`)
+
+Nenhum desses está ativo na v1 — foco é estabilizar o produto grátis primeiro.
+
+---
+
+## Licença
+
+Uso pessoal e educativo. TikTok scraping é tecnicamente contra a ToS do TikTok — se for monetizar em escala, considere migrar para API oficial (RapidAPI, Apify, etc.).
