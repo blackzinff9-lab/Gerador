@@ -1,6 +1,8 @@
 // Backend orquestrador do ENGAJAÍ.
-// Fluxo: validação → rate limit → cache → fetch de tendências do YouTube
+// Fluxo: validação → cache → rate limit → fetch de tendências do YouTube
 //         → prompt → Gemini → filtragem por plataforma → cache → resposta.
+// (Cache vem antes do rate limit: respostas em cache não queimam Gemini,
+//  então não faz sentido contar contra o limite do usuário.)
 //
 // Estratégia de dados reais:
 //   • YouTube Data API v3 (grátis) = fonte única de sinal real de tendências
@@ -37,27 +39,31 @@ export async function POST(request) {
   }
   const { platform, platforms, topic, language } = validation.data;
 
-  // 2) Rate limit (v1: stub)
   const ip = getClientIp(request);
+
+  // 2) Cache check (resposta final) — vem ANTES do rate limit porque
+  //    cached response não consome quota do Gemini, então não faz sentido
+  //    contar contra o limite do usuário.
+  const cacheKey = `gen:${platform}:${topic.toLowerCase()}:${language}`;
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    return Response.json({ ...cached, fromCache: true });
+  }
+
+  // 3) Rate limit — só agora, antes da chamada cara ao Gemini.
+  //    Protege a quota do free tier contra abuso (scripts, spam).
   const rl = checkRateLimit(ip);
   if (!rl.allowed) {
     return errorResponse(
       429,
       "RATE_LIMITED",
-      `Você está usando rápido demais! Tente novamente em ${rl.retryAfterSeconds ?? 60}s.`
+      buildRateLimitMessage(rl.retryAfterSeconds)
     );
   }
 
   // TODO: Monetização — PRO GATE aqui
   //   Free: 3 requests/dia, max 1 plataforma
   //   Pro: ilimitado, todas plataformas, export CSV
-
-  // 3) Cache check (resposta final)
-  const cacheKey = `gen:${platform}:${topic.toLowerCase()}:${language}`;
-  const cached = cache.get(cacheKey);
-  if (cached) {
-    return Response.json({ ...cached, fromCache: true });
-  }
 
   // 4) Fetch de tendências do YouTube (tolerante a falhas)
   let youtubeContext = [];
@@ -139,6 +145,25 @@ function getClientIp(request) {
   const xff = request.headers.get("x-forwarded-for");
   if (xff) return xff.split(",")[0].trim();
   return request.headers.get("x-real-ip") ?? "unknown";
+}
+
+/**
+ * Mensagem de rate limit adaptada ao tempo de espera:
+ *   < 2 min   → "tente em Xs"
+ *   < 1 hora  → "tente em X minutos"
+ *   >= 1 hora → "você atingiu o limite diário, volte em Xh"
+ */
+function buildRateLimitMessage(retryAfterSeconds) {
+  const s = Number(retryAfterSeconds) || 60;
+  if (s < 120) {
+    return `Você está gerando rápido demais! Tente de novo em ${s}s.`;
+  }
+  if (s < 3600) {
+    const minutes = Math.ceil(s / 60);
+    return `Você está gerando rápido demais! Tente de novo em ${minutes} min.`;
+  }
+  const hours = Math.ceil(s / 3600);
+  return `Você atingiu o limite diário de gerações. Volte em ~${hours}h.`;
 }
 
 /**
