@@ -12,8 +12,8 @@
 //      proteção "melhor que nada", não um WAF.
 //   2. Reseta a cada cold start (esperado, e até ajuda usuário legítimo
 //      que ficou bloqueado por engano).
-//   3. Em caso de abuso real em escala, upgrade para Upstash Redis /
-//      Vercel KV (mesma interface, troca só este arquivo).
+//   3. Em caso de abuso real em escala, plugue um store externo síncrono
+//      (ou adapte o algoritmo pra async) via `setRateLimitStore()`.
 //
 // Por que este arquivo é checado DEPOIS do cache em route.js:
 //   Respostas servidas pelo cache NÃO consomem quota do Gemini, então não
@@ -28,8 +28,42 @@ const LONG_MAX = 40;                        // 40 req/dia por IP
 
 const PRUNE_THRESHOLD = 1000;               // quando limpar IPs antigos
 
-/** @type {Map<string, number[]>} ip → array de timestamps (ms) */
-const buckets = new Map();
+/**
+ * Interface mínima de storage pra facilitar troca do backend:
+ *   get(key)        → hits[] | undefined
+ *   set(key, hits)  → void
+ *   delete(key)     → void
+ *   size            → number de chaves
+ *   entries()       → iterável de [key, hits]
+ *
+ * Um adapter async (Vercel KV / Upstash Redis) exigiria também tornar
+ * `checkRateLimit` async. Mantemos sync por enquanto porque a versão
+ * in-memory cobre o tráfego atual sem custo extra.
+ */
+function createMemoryStore() {
+  /** @type {Map<string, number[]>} */
+  const buckets = new Map();
+  return {
+    get: (key) => buckets.get(key),
+    set: (key, value) => { buckets.set(key, value); },
+    delete: (key) => { buckets.delete(key); },
+    get size() { return buckets.size; },
+    entries: () => buckets.entries(),
+  };
+}
+
+let store = createMemoryStore();
+
+/**
+ * Permite substituir o storage em runtime (ex: ao plugar Vercel KV).
+ * Deve ser chamado UMA VEZ, no boot da aplicação, antes do primeiro hit.
+ */
+export function setRateLimitStore(customStore) {
+  if (!customStore || typeof customStore.get !== "function") {
+    throw new Error("Invalid rate limit store: missing .get()");
+  }
+  store = customStore;
+}
 
 /**
  * Verifica se um IP pode fazer mais uma requisição que CONSOME recurso caro.
@@ -50,7 +84,7 @@ export function checkRateLimit(ip) {
   const shortCutoff = now - SHORT_WINDOW_MS;
 
   // Pega o bucket do IP, criando se não existir, e poda timestamps antigos.
-  let hits = buckets.get(ip) ?? [];
+  let hits = store.get(ip) ?? [];
   hits = hits.filter((t) => t > longCutoff);
 
   // Contagem nas duas janelas
@@ -65,7 +99,7 @@ export function checkRateLimit(ip) {
       Math.ceil((oldestShort + SHORT_WINDOW_MS - now) / 1000)
     );
     // Persiste bucket podado pra próxima chamada não refazer o trabalho
-    buckets.set(ip, hits);
+    store.set(ip, hits);
     return { allowed: false, retryAfterSeconds };
   }
 
@@ -76,16 +110,16 @@ export function checkRateLimit(ip) {
       60,
       Math.ceil((oldestLong + LONG_WINDOW_MS - now) / 1000)
     );
-    buckets.set(ip, hits);
+    store.set(ip, hits);
     return { allowed: false, retryAfterSeconds };
   }
 
   // Permite: registra hit
   hits.push(now);
-  buckets.set(ip, hits);
+  store.set(ip, hits);
 
   // Limpeza preguiçosa pra não crescer sem limite em produção
-  if (buckets.size > PRUNE_THRESHOLD) {
+  if (store.size > PRUNE_THRESHOLD) {
     pruneExpired(longCutoff);
   }
 
@@ -93,15 +127,15 @@ export function checkRateLimit(ip) {
 }
 
 /**
- * Remove IPs sem hits recentes. Chamado quando o Map passa do threshold.
+ * Remove IPs sem hits recentes. Chamado quando o store passa do threshold.
  */
 function pruneExpired(longCutoff) {
-  for (const [ip, hits] of buckets.entries()) {
+  for (const [ip, hits] of store.entries()) {
     const fresh = hits.filter((t) => t > longCutoff);
     if (fresh.length === 0) {
-      buckets.delete(ip);
+      store.delete(ip);
     } else if (fresh.length !== hits.length) {
-      buckets.set(ip, fresh);
+      store.set(ip, fresh);
     }
   }
 }

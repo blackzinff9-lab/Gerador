@@ -141,9 +141,29 @@ function errorResponse(status, code, message) {
   );
 }
 
+/**
+ * Extrai o IP do cliente priorizando headers que NÃO são spoofáveis.
+ *
+ * Ordem:
+ *   1. `x-vercel-forwarded-for` — a Vercel injeta esse header ela mesma e
+ *      sobrescreve qualquer valor vindo do cliente, então não é spoofável
+ *      enquanto o app roda atrás da edge da Vercel.
+ *   2. `x-forwarded-for` — fallback pra self-host atrás de proxy confiável
+ *      ou dev local. ATENÇÃO: se o app estiver exposto diretamente sem um
+ *      proxy que normalize este header, ele É spoofável. Por isso só entra
+ *      depois do header específico da Vercel.
+ *   3. `x-real-ip` — último recurso.
+ *
+ * Em todos os casos, pegamos o valor mais à esquerda (cliente original),
+ * confiando que a cadeia de proxies à frente é honesta.
+ */
 function getClientIp(request) {
+  const vercelIp = request.headers.get("x-vercel-forwarded-for");
+  if (vercelIp) return vercelIp.split(",")[0].trim();
+
   const xff = request.headers.get("x-forwarded-for");
   if (xff) return xff.split(",")[0].trim();
+
   return request.headers.get("x-real-ip") ?? "unknown";
 }
 
