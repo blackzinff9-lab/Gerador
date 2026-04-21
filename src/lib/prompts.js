@@ -43,14 +43,14 @@ REGRAS ABSOLUTAS:
 
 /**
  * Constrói o prompt de usuário injetando contexto real de tendências
- * (quando disponível) do YouTube e TikTok.
+ * do YouTube (quando disponível). TikTok/Reels são adaptados pelo Gemini
+ * a partir do sinal do YouTube + conhecimento próprio.
  */
 export function buildUserPrompt({
   topic,
   platforms,
   language,
   youtubeContext,
-  tiktokContext,
 }) {
   const lines = [];
 
@@ -61,9 +61,13 @@ export function buildUserPrompt({
 
   lines.push("CONTEXTO REAL DE TENDÊNCIAS (use para inspirar — NÃO copie):");
 
-  // YouTube
+  // YouTube — fonte real única. Funciona como termômetro da cultura viral:
+  // o que bomba no YouTube sobre o tema também indica o que tá em alta
+  // no TikTok e Reels (formatos, ganchos, ângulos, palavras-chave).
   if (youtubeContext && youtubeContext.length > 0) {
-    lines.push("— YouTube (vídeos populares relacionados, BR):");
+    lines.push(
+      "— YouTube (vídeos em alta RECENTES sobre o tema — últimos 60 dias, BR):"
+    );
     youtubeContext.slice(0, 5).forEach((v, i) => {
       const viewsStr = v.viewCount
         ? ` (${formatViews(v.viewCount)} views)`
@@ -73,25 +77,19 @@ export function buildUserPrompt({
         lines.push(`     tags: ${v.tags.slice(0, 8).join(", ")}`);
       }
     });
+    lines.push("");
+    lines.push(
+      "IMPORTANTE: use os títulos/tags acima como termômetro da cultura viral ATUAL sobre o tema. Os ganchos, ângulos e palavras-chave que estão bombando no YouTube também são sinal do que está em alta no TikTok e Instagram Reels — a cultura viral atravessa plataformas. Adapte o TOM e FORMATO para cada rede (TikTok mais informal/gírias, Reels mais estético/storytelling), mas mantenha o ângulo do tema alinhado com o que os dados reais mostram."
+    );
   } else {
     lines.push(
-      "— YouTube: dados em tempo real indisponíveis. Use seu melhor conhecimento do público brasileiro do YouTube."
+      "— YouTube: dados em tempo real indisponíveis no momento. Use seu melhor conhecimento do que está em alta no YouTube/TikTok/Reels brasileiros sobre o tema."
     );
   }
 
-  // TikTok
-  if (tiktokContext && tiktokContext.length > 0) {
-    lines.push("— TikTok (hashtags em alta agora no BR):");
-    lines.push(`  ${tiktokContext.slice(0, 15).join("  ")}`);
-  } else {
-    lines.push(
-      "— TikTok: dados em tempo real indisponíveis. Use seu melhor conhecimento do For You brasileiro."
-    );
-  }
-
-  // Instagram
+  lines.push("");
   lines.push(
-    "— Instagram Reels: não há dados em tempo real. Use seu conhecimento das tendências de Reels brasileiros (Stories, carrosséis, áudios virais)."
+    "Para TikTok e Instagram Reels (não temos dados em tempo real dessas redes): adapte o sinal do YouTube + seu conhecimento das tendências atuais de cada plataforma (formatos de vídeo, áudios virais, tipos de gancho, hashtags que bombam)."
   );
 
   lines.push("");

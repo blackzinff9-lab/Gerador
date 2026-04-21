@@ -1,9 +1,10 @@
 // Integração com YouTube Data API v3 (FREE tier, 10k unidades/dia).
-// Busca vídeos populares relacionados ao tema, com cache de 24h.
+// Busca vídeos populares RECENTES relacionados ao tema, com cache de 24h.
 //
 // Por que search.list em vez de mostPopular?
 // Desde jul/2025, videos.list?chart=mostPopular só retorna Music/Movies/Gaming.
-// search.list com order=viewCount + regionCode=BR dá o trending real por tema.
+// search.list com order=viewCount + publishedAfter + regionCode=BR dá o
+// trending REAL e ATUAL por tema (não vídeos de 2018 com muitos views).
 //
 // Custo: search.list = 100 unidades; videos.list (enriquecimento) = 1 unidade.
 // Com cache 24h e ~100 tópicos únicos/dia, dá ~10k unidades → exatamente o limite.
@@ -12,6 +13,7 @@ import { cache } from "./cache.js";
 
 const TTL_MS = 24 * 60 * 60 * 1000; // 24h
 const FETCH_TIMEOUT_MS = 5000; // 5s máximo para não estourar Vercel timeout
+const RECENCY_DAYS = 60; // só vídeos publicados nos últimos 60 dias
 
 /**
  * Mapeia idioma do app para regionCode e relevanceLanguage do YouTube.
@@ -40,7 +42,13 @@ export async function fetchYouTubeTrends(topic, language = "pt-BR") {
   if (cached) return cached;
 
   try {
-    // 1) Busca IDs dos top 5 vídeos por viewCount no tema
+    // 1) Busca IDs dos top 5 vídeos RECENTES por viewCount no tema.
+    //    publishedAfter filtra pra pegar o que tá em alta AGORA, não vídeos
+    //    antigos com muitos views acumulados.
+    const publishedAfter = new Date(
+      Date.now() - RECENCY_DAYS * 24 * 60 * 60 * 1000
+    ).toISOString();
+
     const searchUrl = new URL(
       "https://www.googleapis.com/youtube/v3/search"
     );
@@ -51,6 +59,7 @@ export async function fetchYouTubeTrends(topic, language = "pt-BR") {
     searchUrl.searchParams.set("maxResults", "5");
     searchUrl.searchParams.set("regionCode", region);
     searchUrl.searchParams.set("relevanceLanguage", relLang);
+    searchUrl.searchParams.set("publishedAfter", publishedAfter);
     searchUrl.searchParams.set("key", apiKey);
 
     const searchRes = await fetchWithTimeout(searchUrl.toString());

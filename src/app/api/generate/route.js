@@ -1,16 +1,22 @@
 // Backend orquestrador do ENGAJAÍ.
-// Fluxo: validação → rate limit → cache → fetch paralelo de tendências
+// Fluxo: validação → rate limit → cache → fetch de tendências do YouTube
 //         → prompt → Gemini → filtragem por plataforma → cache → resposta.
+//
+// Estratégia de dados reais:
+//   • YouTube Data API v3 (grátis) = fonte única de sinal real de tendências
+//     por tema. Funciona como proxy da cultura viral — o que bomba no YouTube
+//     em geral também bomba no TikTok/Reels (a cultura viral atravessa redes).
+//   • TikTok / Instagram: sem API gratuita confiável. O Gemini adapta o sinal
+//     do YouTube + conhecimento próprio para o estilo de cada plataforma.
 
 import { validateGenerateBody } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { cache } from "@/lib/cache";
 import { fetchYouTubeTrends } from "@/lib/youtube";
-import { fetchTikTokTrends } from "@/lib/tiktok";
 import { generate, isQuotaError } from "@/lib/gemini";
 import { SYSTEM_PROMPT, buildUserPrompt } from "@/lib/prompts";
 
-export const runtime = "nodejs";       // tiktok-api-dl usa libs Node-only
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // nunca pré-renderize
 export const maxDuration = 30;         // Vercel Hobby permite até 60s
 
@@ -53,20 +59,14 @@ export async function POST(request) {
     return Response.json({ ...cached, fromCache: true });
   }
 
-  // 4) Fetch paralelo de tendências (tolerante a falhas)
-  const [ytSettled, ttSettled] = await Promise.allSettled([
-    fetchYouTubeTrends(topic, language),
-    fetchTikTokTrends(),
-  ]);
-
-  const youtubeContext =
-    ytSettled.status === "fulfilled" && Array.isArray(ytSettled.value)
-      ? ytSettled.value
-      : [];
-  const tiktokContext =
-    ttSettled.status === "fulfilled" && Array.isArray(ttSettled.value)
-      ? ttSettled.value
-      : [];
+  // 4) Fetch de tendências do YouTube (tolerante a falhas)
+  let youtubeContext = [];
+  try {
+    const yt = await fetchYouTubeTrends(topic, language);
+    if (Array.isArray(yt)) youtubeContext = yt;
+  } catch (err) {
+    console.error("[api/generate] YouTube fetch error:", err?.message);
+  }
 
   // 5) Construir prompt
   const userPrompt = buildUserPrompt({
@@ -74,7 +74,6 @@ export async function POST(request) {
     platforms,
     language,
     youtubeContext,
-    tiktokContext,
   });
 
   // 6) Chamar Gemini
@@ -122,7 +121,6 @@ export async function POST(request) {
     data: filtered,
     usedRealData: {
       youtube: youtubeContext.length > 0,
-      tiktok: tiktokContext.length > 0,
     },
   };
   cache.set(cacheKey, payload, FINAL_CACHE_TTL_MS);
