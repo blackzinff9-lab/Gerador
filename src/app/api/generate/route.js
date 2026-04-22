@@ -20,14 +20,14 @@ import { SYSTEM_PROMPT, buildUserPrompt } from "@/lib/prompts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // nunca pré-renderize
-export const maxDuration = 30;         // Vercel Hobby permite até 60s
+export const maxDuration = 60;         // Vercel Hobby permite até 60s — damos folga pro Gemini.
 
 const FINAL_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
-// Prefixo v2: mudamos o schema (3 títulos, hashtags coloridas, script opcional).
-// Troca de prefixo invalida automaticamente qualquer cache antigo em warm
-// instances sem precisar limpar nada manualmente.
-const CACHE_PREFIX = "gen2";
+// Prefixo v3: novo schema (variants por plataforma — título/descrição/hashtags
+// passam a vir por variant). Troca de prefixo invalida automaticamente qualquer
+// cache antigo em warm instances sem precisar limpar nada manualmente.
+const CACHE_PREFIX = "gen3";
 
 export async function POST(request) {
   // 1) Parse + validação
@@ -100,15 +100,16 @@ export async function POST(request) {
   });
 
   // 6) Chamar Gemini
-  //    maxTokens maior (3072) porque agora são 3 títulos por plataforma +
-  //    hashtags como objetos (ocupam mais tokens que strings simples) +
-  //    possível roteiro no topo.
+  //    maxTokens bem maior (6144) porque agora cada plataforma traz 3 variants
+  //    COMPLETOS (título + descrição + 10-15 hashtags) em vez de 1 conjunto
+  //    compartilhado. 3 plataformas × 3 variants = 9 blocos + editingStyle +
+  //    possível roteiro com profundidade. Melhor dar folga do que cortar JSON.
   let generated;
   try {
     generated = await generate({
       system: SYSTEM_PROMPT,
       user: userPrompt,
-      maxTokens: 3072,
+      maxTokens: 6144,
     });
   } catch (err) {
     console.error("[api/generate] Gemini error:", err?.message);
@@ -126,19 +127,19 @@ export async function POST(request) {
     );
   }
 
-  // 7) Filtrar só as plataformas pedidas + sanitizar hashtags + normalizar
-  //    títulos (o schema exige 3, mas defendemos contra Gemini devolvendo menos).
+  // 7) Filtrar só as plataformas pedidas + sanitizar variants (garantir 3
+  //    variants válidos por plataforma, cada um com título + descrição +
+  //    hashtags bem formadas).
   const wanted = new Set(platforms);
   const filtered = {
     platforms: (generated?.platforms ?? [])
       .filter((p) => wanted.has(p?.name))
       .map((p) => ({
         name: p.name,
-        titles: normalizeTitles(p.titles),
-        description: typeof p.description === "string" ? p.description : "",
-        hashtags: sanitizeHashtags(p.hashtags),
+        variants: normalizeVariants(p.variants),
         editingStyle: p.editingStyle ?? null,
-      })),
+      }))
+      .filter((p) => p.variants.length > 0),
   };
 
   if (filtered.platforms.length === 0) {
@@ -226,27 +227,39 @@ function buildRateLimitMessage(retryAfterSeconds) {
 }
 
 /**
- * Garante que a plataforma tenha EXATAMENTE 3 títulos não-vazios.
- * O schema do Gemini exige 3, mas fallback defensivo:
- *  - menos que 3: preenche com cópias do primeiro título disponível
- *    (evita renderização quebrada; UI mostra as 3 mesmo que iguais).
- *  - mais que 3: trunca nos 3 primeiros.
- *  - nenhum título válido: devolve array vazio e o chamador decide.
+ * Garante que a plataforma tenha EXATAMENTE 3 variants válidos, cada
+ * um com título + descrição + hashtags sanitizadas.
+ *
+ * O schema pede 3; este é o fallback defensivo:
+ *   - menos que 3 variants válidos: completa com cópias do primeiro válido
+ *     (UI mostra os 3 mesmo que duas tenham o mesmo conteúdo — o usuário
+ *     pelo menos consegue interagir sem quebrar a renderização).
+ *   - mais que 3: trunca nos 3 primeiros.
+ *   - nenhum variant válido: devolve array vazio e o chamador decide.
  */
-function normalizeTitles(raw) {
+function normalizeVariants(raw) {
   if (!Array.isArray(raw)) return [];
+
   const clean = raw
-    .filter((t) => typeof t === "string")
-    .map((t) => t.trim())
-    .filter((t) => t.length > 0);
+    .map((v) => {
+      if (!v || typeof v !== "object") return null;
+      const title = typeof v.title === "string" ? v.title.trim() : "";
+      const description =
+        typeof v.description === "string" ? v.description.trim() : "";
+      const hashtags = sanitizeHashtags(v.hashtags);
+      if (!title || !description || hashtags.length === 0) return null;
+      return { title, description, hashtags };
+    })
+    .filter(Boolean);
 
   if (clean.length === 0) return [];
+
   while (clean.length < 3) clean.push(clean[0]);
   return clean.slice(0, 3);
 }
 
 /**
- * Sanitiza hashtags vindas do Gemini no novo formato {tag, level}.
+ * Sanitiza hashtags vindas do Gemini no formato {tag, level}.
  * - Garante que todas as tags começam com '#'.
  * - Remove duplicadas (case-insensitive), vazias, com espaço interno.
  * - Valida level ∈ {"green","yellow","red"} (default "yellow" se inválido).

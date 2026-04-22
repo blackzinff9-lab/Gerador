@@ -17,10 +17,13 @@ import { ideasResponseSchema } from "@/lib/schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+// Vercel Hobby permite até 60s. Ficamos longe desse limite na prática, mas 30s
+// era apertado quando o Gemini demorava um pouco e causava 504 no front —
+// chega como "erro" genérico pro usuário. 60s dá folga.
+export const maxDuration = 60;
 
 const IDEAS_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
-const CACHE_PREFIX = "ideas2";                 // v2 — permite invalidar no futuro
+const CACHE_PREFIX = "ideas3";                 // v3 — após hardening do endpoint
 
 export async function POST(request) {
   // 1) Parse + validação
@@ -76,7 +79,11 @@ export async function POST(request) {
       system: IDEAS_SYSTEM_PROMPT,
       user: userPrompt,
       schema: ideasResponseSchema,
-      maxTokens: 2048, // 10 itens × ~(título + 20 palavras de hook) cabe aqui
+      // 4096 em vez dos 2048 anteriores: o schema pede EXATAMENTE 10 itens e,
+      // se o modelo "caprichar" em ganchos mais descritivos, 2048 podia cortar
+      // o JSON no meio — resultado: JSON inválido e erro genérico pro usuário.
+      // 4096 é folga de sobra sem custo prático (Gemini 2.5 Flash free-tier).
+      maxTokens: 4096,
       temperature: 0.9, // ligeiramente mais criativo pra variedade entre as 10
     });
   } catch (err) {
@@ -91,17 +98,25 @@ export async function POST(request) {
     return errorResponse(
       502,
       "GEMINI_FAILED",
-      "Não conseguimos gerar as ideias agora. Tente de novo em alguns segundos."
+      "A IA demorou demais ou falhou ao gerar as 10 ideias. Tente de novo em alguns segundos."
     );
   }
 
-  // 5) Sanitização defensiva
+  // 5) Sanitização defensiva — aceita quantas ideias vierem bem-formadas
+  //    (pelo menos 5) em vez de exigir 10 perfeitas. Melhor entregar 7 válidas
+  //    do que quebrar tudo porque 1 item veio com campo faltando.
   const ideas = sanitizeIdeas(generated?.ideas);
-  if (ideas.length === 0) {
+  if (ideas.length < 5) {
+    console.error(
+      "[api/ideas] too few valid ideas after sanitize:",
+      ideas.length,
+      "raw:",
+      Array.isArray(generated?.ideas) ? generated.ideas.length : "not-array"
+    );
     return errorResponse(
       502,
       "GEMINI_FAILED",
-      "A IA não retornou ideias válidas. Tente de novo."
+      "A IA não retornou ideias suficientes. Tente de novo."
     );
   }
 

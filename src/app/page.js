@@ -67,11 +67,20 @@ export default function HomePage() {
   async function handleGenerateIdeas() {
     if (!result || !lastPayload) return;
 
-    // seedTitles: pega o primeiro título de cada plataforma + os 3 da
-    // primeira (o máximo de variedade pro Gemini ter contexto da série).
+    // seedTitles: extrai os títulos de todos os variants de todas as
+    // plataformas (até 9) — assim o Gemini tem o panorama dos ângulos
+    // que o usuário já viu e as 10 ideias novas não repetem.
+    // Compat: se o payload ainda estiver no formato antigo (titles[]),
+    // aceita também.
     const allTitles = (result.platforms ?? [])
-      .flatMap((p) => (Array.isArray(p.titles) ? p.titles : []))
-      .filter(Boolean);
+      .flatMap((p) => {
+        if (Array.isArray(p.variants) && p.variants.length > 0) {
+          return p.variants.map((v) => v?.title).filter(Boolean);
+        }
+        if (Array.isArray(p.titles)) return p.titles.filter(Boolean);
+        return [];
+      })
+      .filter((t) => typeof t === "string" && t.trim().length > 0);
 
     const seedTitles = Array.from(new Set(allTitles)).slice(0, 9);
 
@@ -146,15 +155,9 @@ export default function HomePage() {
               <ResultCard key={platform.name} platform={platform} />
             ))}
 
-            {/* Conteúdo infinito — só oferece depois que já tem resultado */}
+            {/* Conteúdo infinito — bloco chamativo com explicação do que o botão faz. */}
             {!ideas && !ideasLoading && !ideasError && (
-              <button
-                type="button"
-                onClick={handleGenerateIdeas}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-brand-primary bg-white px-5 py-3.5 font-display font-bold text-brand-primary shadow-sm transition hover:bg-brand-primary hover:text-white"
-              >
-                Gerar conteúdo infinito (10 próximos vídeos)
-              </button>
+              <InfiniteContentCTA onClick={handleGenerateIdeas} />
             )}
 
             {(ideasLoading || ideasError || ideas) && (
@@ -173,5 +176,69 @@ export default function HomePage() {
 
       <Footer />
     </main>
+  );
+}
+
+/**
+ * Bloco "Conteúdo Infinito".
+ * Precisa ser CHAMATIVO (o usuário tende a não clicar se parecer botão
+ * secundário) e trazer uma explicação curta do que ele faz logo abaixo
+ * do título. Visual: fundo com gradiente leve da cor da marca, borda
+ * destacada, botão com gradient e micro-interação no hover.
+ */
+function InfiniteContentCTA({ onClick }) {
+  return (
+    <section
+      aria-labelledby="infinite-title"
+      className="relative overflow-hidden rounded-2xl border-2 border-brand-primary/40 bg-gradient-to-br from-brand-primary/10 via-white to-brand-accent/10 p-5 shadow-sm sm:p-6 animate-fade-in"
+    >
+      {/* Marca d'água sutil do símbolo infinito pra reforçar a ideia */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-4 -top-2 select-none font-display text-[110px] font-extrabold leading-none text-brand-primary/5"
+      >
+        ∞
+      </span>
+
+      <div className="relative flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-primary text-white shadow-md">
+          <span aria-hidden="true" className="text-2xl font-bold leading-none">
+            ∞
+          </span>
+        </div>
+        <div className="flex-1">
+          <h3
+            id="infinite-title"
+            className="font-display text-lg font-extrabold text-brand-dark sm:text-xl"
+          >
+            Conteúdo infinito
+          </h3>
+          <p className="mt-1 text-sm leading-relaxed text-brand-dark/80">
+            Gera <strong>10 ideias de próximos vídeos</strong> interligadas com
+            o tema que você acabou de criar. São vídeos do mesmo nicho que
+            formam uma <strong>série</strong> — o algoritmo entende que quem
+            assiste um provavelmente vai querer ver os outros e passa a
+            recomendar o seu canal em sequência. Resultado: mais retenção, mais
+            views e crescimento mais rápido sem precisar pensar no que postar
+            depois.
+          </p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onClick}
+        className="group relative mt-4 flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-brand-primary to-emerald-500 px-5 py-3.5 font-display text-base font-extrabold text-white shadow-md transition hover:shadow-lg hover:brightness-110 active:scale-[0.99]"
+      >
+        <span aria-hidden="true" className="text-xl leading-none">
+          ∞
+        </span>
+        <span>Gerar 10 próximos vídeos</span>
+      </button>
+
+      <p className="mt-2 text-center text-[11px] text-brand-muted">
+        Grátis — funciona igual ao gerador principal, leva ~5 segundos.
+      </p>
+    </section>
   );
 }

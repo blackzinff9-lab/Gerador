@@ -2,15 +2,17 @@
 // Formato OpenAPI-like aceito pelo @google/genai.
 // Garante que todo retorno seja um JSON parseável com os campos certos.
 //
-// Mudanças v2:
-//   • `title` (string única) → `titles` (array de EXATAMENTE 3 strings):
-//     permite que o usuário teste ângulos diferentes (algoritmos virais
-//     recompensam quem testa variações de hook).
-//   • `hashtags` (array<string>) → `hashtags` (array<{tag, level}>):
-//     cada tag vem classificada como "green" (recomendada), "yellow"
-//     (mediana) ou "red" (evitar), pra sinalizar risco/saturação.
-//   • Top-level opcional `script` ({hook, body, cta}): preenchido só
-//     quando o request pede roteiro (fluxo "ainda estou fazendo o vídeo").
+// Mudanças v3:
+//   • Título, descrição e hashtags agora vêm POR VARIANT:
+//     `platforms[].variants[]` onde cada variant = { title, description, hashtags }.
+//     O usuário escolhe 1 variant e publica — por isso cada um vem com
+//     descrição e hashtags específicas pro seu ângulo.
+//   • `editingStyle` continua UMA vez por plataforma (é do formato, não do ângulo).
+//
+// Mudanças v2 (histórico):
+//   • `title` (string única) → `titles` (array de EXATAMENTE 3 strings).
+//   • `hashtags` (array<string>) → `hashtags` (array<{tag, level}>).
+//   • Top-level opcional `script` ({hook, body, cta}).
 
 export const responseSchema = {
   type: "OBJECT",
@@ -36,29 +38,36 @@ export const responseSchema = {
             type: "STRING",
             enum: ["youtube", "tiktok", "instagram"],
           },
-          titles: {
-            type: "ARRAY",
-            items: { type: "STRING" },
-            minItems: 3,
-            maxItems: 3,
-          },
-          description: { type: "STRING" },
-          hashtags: {
+          variants: {
             type: "ARRAY",
             items: {
               type: "OBJECT",
               properties: {
-                tag: { type: "STRING" },
-                level: {
-                  type: "STRING",
-                  enum: ["green", "yellow", "red"],
+                title: { type: "STRING" },
+                description: { type: "STRING" },
+                hashtags: {
+                  type: "ARRAY",
+                  items: {
+                    type: "OBJECT",
+                    properties: {
+                      tag: { type: "STRING" },
+                      level: {
+                        type: "STRING",
+                        enum: ["green", "yellow", "red"],
+                      },
+                    },
+                    required: ["tag", "level"],
+                    propertyOrdering: ["tag", "level"],
+                  },
+                  minItems: 10,
+                  maxItems: 15,
                 },
               },
-              required: ["tag", "level"],
-              propertyOrdering: ["tag", "level"],
+              required: ["title", "description", "hashtags"],
+              propertyOrdering: ["title", "description", "hashtags"],
             },
-            minItems: 10,
-            maxItems: 15,
+            minItems: 3,
+            maxItems: 3,
           },
           editingStyle: {
             type: "OBJECT",
@@ -86,20 +95,8 @@ export const responseSchema = {
             ],
           },
         },
-        required: [
-          "name",
-          "titles",
-          "description",
-          "hashtags",
-          "editingStyle",
-        ],
-        propertyOrdering: [
-          "name",
-          "titles",
-          "description",
-          "hashtags",
-          "editingStyle",
-        ],
+        required: ["name", "variants", "editingStyle"],
+        propertyOrdering: ["name", "variants", "editingStyle"],
       },
     },
   },

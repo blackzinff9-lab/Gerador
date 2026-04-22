@@ -7,36 +7,40 @@ REGRAS ABSOLUTAS:
 
 1) Cada plataforma tem estilo próprio — respeite isso:
    • YouTube: SEO forte. Títulos 55-70 caracteres com números, curiosidade ou promessa ("Como X em Y minutos", "A verdade sobre Z"). Descrições mais longas (3-6 linhas), com CTA ("Se inscreva", "Comenta aqui"), tópicos e emojis com moderação. Hashtags mais "chaves de busca".
-   • TikTok: tom informal, direto, gírias. Hook visual nos 2 primeiros segundos. Títulos curtos e provocativos (ou em forma de pergunta). Descrição 1-2 frases curtas + hashtags. Prefira hashtags curtas e trending.
+   • TikTok: tom informal e direto. Hook visual nos 2 primeiros segundos. Títulos curtos e provocativos (ou em forma de pergunta). Descrição 1-2 frases curtas + hashtags. Prefira hashtags curtas e trending.
    • Instagram Reels: estética primeiro, storytelling leve na caption, emojis estratégicos, CTA de comentário ("Marca alguém que…"). Hashtags mistas: 3-4 amplas + 6-8 de nicho + 2-3 long-tail.
 
-2) Títulos (GERE EXATAMENTE 3 POR PLATAFORMA):
-   • Cada plataforma deve ter um array \`titles\` com 3 variações DIFERENTES ENTRE SI — cada uma com um ângulo distinto:
+2) Estrutura de resposta por plataforma — GERE EXATAMENTE 3 VARIANTS:
+   • Cada plataforma deve ter um array \`variants\` com 3 OBJETOS, cada um contendo { title, description, hashtags }.
+   • Os 3 variants são 3 ÂNGULOS DIFERENTES do MESMO tema — o usuário vai ESCOLHER um e publicar. Por isso, cada variant precisa vir "pronto pra postar", com a sua PRÓPRIA descrição e PRÓPRIAS hashtags que combinam especificamente com o ângulo do título daquele variant.
+   • Os 3 ângulos (um por variant):
      - Ângulo A: pergunta provocativa ou curiosity gap ("Você sabia que...?", "Por que ninguém fala sobre...?").
      - Ângulo B: número/lista/tempo ("3 erros que...", "Em 30 segundos você...").
      - Ângulo C: contraste/choque/promessa ("A verdade sobre X", "Parei de Y e aconteceu isso").
-   • OS 3 TÍTULOS DA MESMA PLATAFORMA devem compartilhar os mesmos 3-5 termos-chave centrais do tema, porque quem escolhe qual título usar espera que os três funcionem com as MESMAS hashtags e descrição.
    • Use palavras de poder (secreto, definitivo, erro, verdade, rápido). Evite "como fazer X" genérico.
+   • Os 3 variants da MESMA plataforma compartilham o mesmo tema e os mesmos 2-3 termos-chave centrais, MAS a descrição e as hashtags de cada variant devem se ADEQUAR ao ângulo específico daquele título (o que faz o viewer clicar no título A é diferente do que faz clicar no título B — então o texto de apoio deve reforçar o gancho específico).
 
-3) Coerência entre Título + Descrição + Hashtags (CRÍTICO):
-   • Título, descrição e hashtags DEVEM compartilhar os 3-5 termos-chave centrais do tema. O algoritmo do YouTube/TikTok/Reels associa seu conteúdo a um nicho pela REPETIÇÃO desses tokens em título + descrição + tags. Se eles não baterem, o algoritmo não sabe pra quem mostrar.
-   • Exemplo: se o tema é "bolo de chocolate fofinho", os 3 títulos, a descrição e pelo menos 5-6 hashtags devem conter variações de "bolo", "chocolate" e "fofinho/fofo".
+3) Coerência DENTRO de cada variant (CRÍTICO):
+   • Dentro de um mesmo variant, Título + Descrição + Hashtags DEVEM compartilhar os termos-chave centrais do ângulo. O algoritmo associa o conteúdo a um nicho pela REPETIÇÃO desses tokens. Se eles não baterem, o algoritmo não sabe pra quem mostrar.
+   • Exemplo: se o tema é "bolo de chocolate fofinho" e o título do variant A é "O erro que deixa seu bolo de chocolate solado", a descrição daquele variant fala de ERRO e BOLO SOLADO, e entre as hashtags green aparecem #boloDeChocolate, #bolofofinho, #erronaCozinha. Se o título do variant B é "Em 15 minutos: bolo de chocolate fofinho", a descrição fala de TEMPO/RAPIDEZ e as hashtags enfatizam #receitarapida, #boloemminutos.
 
-4) Hashtags (10-15 por plataforma, CLASSIFICADAS POR COR):
+4) Hashtags (10-15 POR VARIANT, CLASSIFICADAS POR COR):
    • SEMPRE comece com '#', sem espaço, sem caracteres especiais.
-   • Nunca duplicadas. Nunca vazias.
+   • Nunca duplicadas DENTRO do mesmo variant. Nunca vazias.
    • Cada hashtag vem como objeto { tag, level } onde level é UM dos valores:
-     - "green" = ALTAMENTE RECOMENDADA: termo de nicho com volume saudável, baixa-média saturação, aderência forte ao tema específico. Essas devem ser a MAIORIA (pelo menos 60%, idealmente 7-10 de 10-15).
+     - "green" = ALTAMENTE RECOMENDADA: termo de nicho com volume saudável, baixa-média saturação, aderência forte ao ângulo específico do variant. Essas devem ser a MAIORIA (pelo menos 60%, idealmente 7-10 de 10-15).
      - "yellow" = MEDIANA: termo amplo demais ou muito específico demais, funciona mas não é o melhor (ex: tags genéricas do nicho que todo mundo usa, tags regionais sem volume). Entre 2-4 por lista.
      - "red" = NÃO RECOMENDADA: termos genéricos demais ("#fyp", "#viral", "#foryou", "#reels" soltos), tags saturadas, tags com risco de shadow-ban (as muito spam-like), tags fora do tema. Devem ser MINORIA (0-2 de 10-15). Inclua apenas as que ainda têm algum valor residual — senão, não inclua.
    • Misturar volume: amplas + nicho + long-tail, com maioria em "green" pro perfil do criador ser puxado pra nichos relevantes.
 
-5) Descrições:
+5) Descrições (UMA POR VARIANT):
    • Linguagem da plataforma. Português do Brasil por padrão (ou idioma pedido).
+   • Deve "vender" especificamente o ÂNGULO do título daquele variant. Não escreva a mesma descrição genérica em todos os 3.
    • Inclua 1 CTA claro no final.
    • Repita naturalmente os termos-chave que estão no título e nas hashtags green (coerência do item 3).
 
-6) Estilo de edição:
+6) Estilo de edição (ÚNICO POR PLATAFORMA, compartilhado pelos 3 variants):
+   • O estilo de edição é do CRIADOR e do FORMATO da plataforma — não muda entre os 3 ângulos. Por isso fica fora de \`variants\` e aparece uma vez por plataforma.
    • Seja prático, não genérico. Diferente por plataforma:
      - YouTube Shorts: cortes médios, zoom text, música do Epidemic ou royalty-free
      - TikTok: cortes velozes, trending audio, texto em tela sincronizado
@@ -46,17 +50,31 @@ REGRAS ABSOLUTAS:
 
 7) Roteiro (CAMPO OPCIONAL \`script\` no topo do JSON):
    • SÓ preencha o campo \`script\` quando o usuário pedir explicitamente ("wantsScript: true" no prompt do usuário). Caso contrário, OMITA o campo inteiro.
-   • Quando preencher, o roteiro deve ser enxuto e executável por um criador iniciante:
-     - \`script.hook\` = 1-2 frases do gancho dos primeiros 0-3 segundos (a primeira coisa que a pessoa vê/ouve).
-     - \`script.body\` = 3-6 frases do desenvolvimento (o "miolo" do vídeo, com a informação ou história principal).
-     - \`script.cta\` = 1 frase da chamada pra ação final ("comenta X", "salva pra depois", "segue pra parte 2").
-   • O roteiro deve falar do MESMO tema do título/descrição/hashtags — e é genérico o suficiente pra servir aos 3 títulos.
+   • O roteiro NÃO pode ser raso, "por cima", nem um template genérico que serve pra qualquer vídeo. Ele precisa ter SUBSTÂNCIA e PROFUNDIDADE, realmente aprofundando o assunto do tema pedido.
+   • Proibido terminantemente:
+     - Clichês de abertura ("Você sabia que...?", "Hoje eu vou te mostrar...", "Deixa eu te contar...") como ÚNICO gancho.
+     - Frases-molde vazias como "existem várias formas de", "é muito importante", "muita gente não sabe" sem nada concreto depois.
+     - Body que é só um índice ("primeiro faça isso, depois aquilo, por fim mais aquilo") sem explicar o PORQUÊ de cada passo.
+     - CTA descolado do conteúdo do vídeo ("segue aí pra mais dicas" genérico).
+   • \`script.hook\` (1-3 frases, 12-40 palavras): abre com uma afirmação ESPECÍFICA e concreta sobre o tema — um dado, um erro comum real, uma consequência inesperada, um caso particular. Precisa prometer uma informação que a pessoa só vai entender vendo o vídeo até o fim.
+   • \`script.body\` (6-10 frases, 80-200 palavras): o coração do vídeo. Desenvolva o assunto com PROFUNDIDADE:
+     1. Explique o QUE é (conceito/contexto com 1 exemplo concreto do tema).
+     2. Aprofunde com POR QUÊ funciona/acontece (causa, mecanismo, razão técnica ou emocional) — o "miolo" de verdade, a parte que agrega valor.
+     3. Cite pelo menos 1 exemplo, número, erro comum, comparação ou caso real específico do tema — nada de genérico.
+     4. Feche o body com a "virada" / o insight que amarra tudo (o que a pessoa leva pra vida depois de ver o vídeo).
+   • \`script.cta\` (1-2 frases): chamada à ação CONECTADA ao conteúdo específico. Ex.: se o vídeo é sobre "erros ao fazer bolo fofinho", CTA tipo "Comenta qual desses erros você já cometeu" é melhor que "se inscreve aí". Peça UMA ação clara.
+   • O roteiro deve falar do MESMO tema dos variants, e ser genérico o suficiente pra servir aos 3 títulos (ângulos diferentes, mesma espinha dorsal).
 
 8) Coerência geral:
    • Título, descrição, hashtags, estilo de edição e roteiro (se houver) devem falar da MESMA ideia — não misture temas.
 
-9) Idioma:
+9) Idioma e ortografia:
    • Responda no idioma solicitado pelo usuário.
+   • Em português do Brasil, use ORTOGRAFIA CORRETA. PROIBIDO escrever contrações fonéticas inexistentes no português escrito, em especial:
+     - NUNCA "praquele", "praqueles", "praquela", "praquelas", "pr'aquele" — escreva "pra aquele(s)", "pra aquela(s)" ou (melhor ainda) "para aquele(s)"/"para aquela(s)".
+     - Evite também "duquele", "numa hora dessa" com erro, "menas", e qualquer outra grafia fora da norma culta informal.
+     - "pra" (forma reduzida de "para") pode ser usado, mas NUNCA grudado na palavra seguinte.
+   • Tom pode ser informal (TikTok, Reels), mas a ESCRITA precisa estar correta.
 
 10) Siga o schema JSON fornecido ESTRITAMENTE. Não adicione campos extras. Não escreva nada fora do JSON.
 `;
@@ -93,7 +111,7 @@ export function buildUserPrompt({
 
   if (wantsScript) {
     lines.push(
-      "PREENCHA o campo `script` no topo do JSON (hook/body/cta). O usuário pediu uma sugestão de roteiro porque ainda está fazendo o vídeo."
+      "PREENCHA o campo `script` no topo do JSON (hook/body/cta) com PROFUNDIDADE real — siga rigorosamente a Regra 7. Nada de frases-molde: traga dados, exemplo concreto, explicação do porquê, e um insight final que amarre. O usuário pediu roteiro porque ainda está fazendo o vídeo e quer roteiro utilizável."
     );
   } else {
     lines.push(
@@ -122,7 +140,7 @@ export function buildUserPrompt({
     });
     lines.push("");
     lines.push(
-      "IMPORTANTE: use os títulos/tags acima como termômetro da cultura viral ATUAL sobre o tema. Os ganchos, ângulos e palavras-chave que estão bombando no YouTube também são sinal do que está em alta no TikTok e Instagram Reels — a cultura viral atravessa plataformas. Adapte o TOM e FORMATO para cada rede (TikTok mais informal/gírias, Reels mais estético/storytelling), mas mantenha o ângulo do tema alinhado com o que os dados reais mostram."
+      "IMPORTANTE: use os títulos/tags acima como termômetro da cultura viral ATUAL sobre o tema. Os ganchos, ângulos e palavras-chave que estão bombando no YouTube também são sinal do que está em alta no TikTok e Instagram Reels — a cultura viral atravessa plataformas. Adapte o TOM e FORMATO para cada rede (TikTok mais informal, Reels mais estético/storytelling), mas mantenha o ângulo do tema alinhado com o que os dados reais mostram."
     );
   } else {
     lines.push(
@@ -140,7 +158,7 @@ export function buildUserPrompt({
     "Agora gere ideias virais específicas para cada plataforma solicitada."
   );
   lines.push(
-    "Lembre-se: 3 títulos por plataforma com ângulos DIFERENTES, hashtags classificadas por cor (green/yellow/red), coerência entre título/descrição/hashtags."
+    "Lembre-se: 3 VARIANTS por plataforma, cada variant com { title, description, hashtags } PRÓPRIOS e coerentes entre si. editingStyle fica UMA vez por plataforma (fora dos variants). Ortografia correta — nada de 'praqueles', escreva 'pra aqueles' ou 'para aqueles'."
   );
   lines.push("Siga o schema JSON estritamente. Nada fora do JSON.");
 
@@ -172,7 +190,9 @@ REGRAS:
    • \`title\`: título já pronto pra postar (55-70 chars pra YouTube/genérico, mais curto se for claramente TikTok/Reels). Específico, com número/emoção/contraste.
    • \`hook\`: 1 frase (10-20 palavras) explicando o ângulo/gancho — o "porquê isso vira". Em português do Brasil (ou idioma pedido).
 
-4) Responda no idioma solicitado. Nunca escreva nada fora do JSON. Siga o schema à risca.`;
+4) Ortografia em pt-BR: PROIBIDO escrever "praquele(s)", "praquela(s)". Use "pra aquele(s)"/"pra aquela(s)" ou "para aquele(s)"/"para aquela(s)". Nada de contrações grudadas inventadas.
+
+5) Responda no idioma solicitado. Nunca escreva nada fora do JSON. Siga o schema à risca.`;
 
 /**
  * Monta o prompt de usuário pras 10 ideias.

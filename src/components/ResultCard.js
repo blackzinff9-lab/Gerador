@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import CopyButton from "./CopyButton";
 import HashtagList from "./HashtagList";
 
@@ -19,7 +20,15 @@ export default function ResultCard({ platform }) {
     color: "text-brand-dark",
   };
 
-  const titles = Array.isArray(platform.titles) ? platform.titles : [];
+  // Backwards-compat: se ainda chegar um payload antigo com
+  // `titles/description/hashtags` no nível da plataforma (cache velho ou
+  // fallback), converte em variants[] pra UI não quebrar.
+  const variants = normalizeVariants(platform);
+
+  // O usuário escolhe um dos 3 variants clicando — descrição + hashtags
+  // mostradas abaixo são sempre do variant selecionado.
+  const [selected, setSelected] = useState(0);
+  const current = variants[selected] ?? variants[0] ?? null;
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -30,36 +39,69 @@ export default function ResultCard({ platform }) {
       </header>
 
       <div className="space-y-5">
-        <Section title="Títulos virais (3 opções)">
+        <Section
+          title="Títulos virais (3 opções)"
+          hint="Clique no título que você mais gostar — a descrição e as hashtags abaixo se ajustam a ele."
+        >
           <ol className="space-y-2">
-            {titles.map((t, idx) => (
-              <li
-                key={`${idx}-${t.slice(0, 16)}`}
-                className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
-              >
-                <div className="flex-1">
-                  <span className="mr-2 inline-block rounded-full bg-brand-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-primary">
-                    Opção {idx + 1}
-                  </span>
-                  <span className="text-base font-semibold leading-snug text-brand-dark">
-                    {t}
-                  </span>
-                </div>
-                <CopyButton text={t} label="Copiar" />
-              </li>
-            ))}
+            {variants.map((v, idx) => {
+              const isActive = idx === selected;
+              return (
+                <li key={`${idx}-${v.title.slice(0, 16)}`}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(idx)}
+                    aria-pressed={isActive}
+                    className={[
+                      "flex w-full items-start justify-between gap-3 rounded-lg border-2 px-3 py-2 text-left transition",
+                      isActive
+                        ? "border-brand-primary bg-brand-primary/10 shadow-sm"
+                        : "border-slate-200 bg-slate-50 hover:border-brand-primary/40 hover:bg-white",
+                    ].join(" ")}
+                  >
+                    <div className="flex-1">
+                      <span
+                        className={[
+                          "mr-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                          isActive
+                            ? "bg-brand-primary text-white"
+                            : "bg-brand-primary/15 text-brand-primary",
+                        ].join(" ")}
+                      >
+                        {isActive ? `Escolhido • Opção ${idx + 1}` : `Opção ${idx + 1}`}
+                      </span>
+                      <span className="text-base font-semibold leading-snug text-brand-dark">
+                        {v.title}
+                      </span>
+                    </div>
+                    <CopyButton text={v.title} label="Copiar" />
+                  </button>
+                </li>
+              );
+            })}
           </ol>
         </Section>
 
-        <Section title="Descrição" copyText={platform.description}>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-brand-dark">
-            {platform.description}
-          </p>
-        </Section>
+        {current && (
+          <>
+            <Section
+              title="Descrição"
+              copyText={current.description}
+              hint={`Personalizada pro título "${truncate(current.title, 40)}".`}
+            >
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-brand-dark">
+                {current.description}
+              </p>
+            </Section>
 
-        <Section title="Hashtags em alta">
-          <HashtagList hashtags={platform.hashtags} />
-        </Section>
+            <Section
+              title="Hashtags em alta"
+              hint="Combinam com o título escolhido acima."
+            >
+              <HashtagList hashtags={current.hashtags} />
+            </Section>
+          </>
+        )}
 
         <Section title="Estilo de edição sugerido">
           <EditingStyle style={platform.editingStyle} />
@@ -71,15 +113,17 @@ export default function ResultCard({ platform }) {
   );
 }
 
-function Section({ title, children, copyText }) {
+function Section({ title, children, copyText, hint }) {
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="mb-1 flex items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-brand-muted">
           {title}
         </h3>
         {copyText && <CopyButton text={copyText} />}
       </div>
+      {hint && <p className="mb-2 text-[11px] text-brand-muted">{hint}</p>}
+      {!hint && <div className="mb-1" />}
       {children}
     </div>
   );
@@ -125,4 +169,34 @@ function EditingStyle({ style }) {
       )}
     </div>
   );
+}
+
+/**
+ * Converte o shape da plataforma em variants[].
+ * Fonte canônica: `platform.variants`. Em caso de payload antigo em cache
+ * (titles[] + description + hashtags no nível da plataforma), constrói
+ * 3 variants usando a mesma descrição/hashtags — mantém a UI funcional
+ * até o cache antigo expirar.
+ */
+function normalizeVariants(platform) {
+  if (Array.isArray(platform?.variants) && platform.variants.length > 0) {
+    return platform.variants.filter(
+      (v) => v && typeof v.title === "string" && v.title.trim().length > 0
+    );
+  }
+
+  const legacyTitles = Array.isArray(platform?.titles) ? platform.titles : [];
+  if (legacyTitles.length === 0) return [];
+  return legacyTitles.map((t) => ({
+    title: String(t),
+    description:
+      typeof platform.description === "string" ? platform.description : "",
+    hashtags: Array.isArray(platform.hashtags) ? platform.hashtags : [],
+  }));
+}
+
+function truncate(text, n) {
+  const s = String(text ?? "");
+  if (s.length <= n) return s;
+  return `${s.slice(0, n - 1)}…`;
 }
