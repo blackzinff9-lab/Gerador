@@ -46,14 +46,23 @@ export default function ResultCard({ platform }) {
           <ol className="space-y-2">
             {variants.map((v, idx) => {
               const isActive = idx === selected;
+              // Wrapper é <div role="button"> (não <button>) pra permitir
+              // aninhar o <button> do CopyButton dentro sem HTML inválido.
               return (
                 <li key={`${idx}-${v.title.slice(0, 16)}`}>
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelected(idx)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelected(idx);
+                      }
+                    }}
                     aria-pressed={isActive}
                     className={[
-                      "flex w-full items-start justify-between gap-3 rounded-lg border-2 px-3 py-2 text-left transition",
+                      "flex w-full cursor-pointer items-start justify-between gap-3 rounded-lg border-2 px-3 py-2 text-left transition",
                       isActive
                         ? "border-brand-primary bg-brand-primary/10 shadow-sm"
                         : "border-slate-200 bg-slate-50 hover:border-brand-primary/40 hover:bg-white",
@@ -74,8 +83,12 @@ export default function ResultCard({ platform }) {
                         {v.title}
                       </span>
                     </div>
-                    <CopyButton text={v.title} label="Copiar" />
-                  </button>
+                    {/* stopPropagation pra não selecionar o variant quando
+                        o usuário só queria copiar o título. */}
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <CopyButton text={v.title} label="Copiar" />
+                    </div>
+                  </div>
                 </li>
               );
             })}

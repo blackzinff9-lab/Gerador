@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import GeneratorForm from "@/components/GeneratorForm";
 import ResultCard from "@/components/ResultCard";
 import ScriptCard from "@/components/ScriptCard";
@@ -8,8 +9,14 @@ import IdeasList from "@/components/IdeasList";
 import LoadingState from "@/components/LoadingState";
 import ErrorMessage from "@/components/ErrorMessage";
 import Footer from "@/components/Footer";
+import AuthButton from "@/components/AuthButton";
+import HistoryDrawer from "@/components/HistoryDrawer";
+import { saveEntry } from "@/lib/history";
 
 export default function HomePage() {
+  const { data: session } = useSession();
+  const user = session?.user ?? null;
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
@@ -21,6 +28,9 @@ export default function HomePage() {
   const [ideas, setIdeas] = useState(null);
   const [ideasLoading, setIdeasLoading] = useState(false);
   const [ideasError, setIdeasError] = useState(null);
+
+  // Drawer do histórico (só tem efeito quando logado).
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   async function handleGenerate(payload) {
     setLoading(true);
@@ -50,6 +60,20 @@ export default function HomePage() {
       }
 
       setResult(json.data);
+
+      // Salva no histórico só quando há usuário logado. Visitante anônimo
+      // fica sem histórico — é a regra que o usuário pediu ("login habilita
+      // histórico de gerações").
+      if (user) {
+        saveEntry(user, {
+          topic: payload.topic,
+          platform: payload.platform,
+          language: payload.language,
+          hasVideo: payload.hasVideo,
+          wantsScript: payload.wantsScript,
+          data: json.data,
+        });
+      }
     } catch (e) {
       console.error("[page] fetch failed", e);
       setError(
@@ -120,11 +144,40 @@ export default function HomePage() {
     }
   }
 
+  /**
+   * Restaura uma geração do histórico SEM regerar. Preenche o state
+   * como se acabasse de chegar do backend.
+   */
+  function handleRestore(entry) {
+    if (!entry?.data) return;
+    setError(null);
+    setIdeas(null);
+    setIdeasError(null);
+    setResult(entry.data);
+    setLastPayload({
+      topic: entry.topic,
+      platform: entry.platform,
+      language: entry.language ?? "pt-BR",
+      hasVideo: entry.hasVideo ?? "ready",
+      wantsScript: entry.wantsScript ?? false,
+    });
+    // Rola pro topo dos resultados pra sinalizar que algo mudou na tela.
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
   const hasResults =
     !!result && Array.isArray(result.platforms) && result.platforms.length > 0;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col px-4 py-8 sm:py-12">
+      {/* Barra superior: auth fica no canto direito. Mantemos o header
+          centralizado pro título da marca não parecer desbalanceado. */}
+      <div className="mb-4 flex items-center justify-end">
+        <AuthButton onOpenHistory={() => setHistoryOpen(true)} />
+      </div>
+
       <header className="mb-8 text-center animate-fade-in">
         <h1 className="font-display text-4xl font-extrabold tracking-tight text-brand-dark sm:text-5xl">
           ENGAJA<span className="text-brand-primary">Í</span>
@@ -175,6 +228,13 @@ export default function HomePage() {
       {/* TODO: Monetização — slot AdSense banner horizontal (728x90 desktop / 320x50 mobile) aqui */}
 
       <Footer />
+
+      <HistoryDrawer
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        user={user}
+        onRestore={handleRestore}
+      />
     </main>
   );
 }

@@ -100,16 +100,17 @@ export async function POST(request) {
   });
 
   // 6) Chamar Gemini
-  //    maxTokens bem maior (6144) porque agora cada plataforma traz 3 variants
-  //    COMPLETOS (título + descrição + 10-15 hashtags) em vez de 1 conjunto
-  //    compartilhado. 3 plataformas × 3 variants = 9 blocos + editingStyle +
-  //    possível roteiro com profundidade. Melhor dar folga do que cortar JSON.
+  //    maxTokens 8192: cada plataforma traz 3 variants COMPLETOS (título +
+  //    descrição + 8-12 hashtags). 3 plataformas × 3 variants = 9 blocos +
+  //    editingStyle + roteiro com profundidade. 6144 era apertado e às vezes
+  //    cortava o JSON (MAX_TOKENS) → "Não conseguimos gerar ideias agora".
+  //    8192 dá folga confortável.
   let generated;
   try {
     generated = await generate({
       system: SYSTEM_PROMPT,
       user: userPrompt,
-      maxTokens: 6144,
+      maxTokens: 8192,
     });
   } catch (err) {
     console.error("[api/generate] Gemini error:", err?.message);
@@ -227,35 +228,48 @@ function buildRateLimitMessage(retryAfterSeconds) {
 }
 
 /**
- * Garante que a plataforma tenha EXATAMENTE 3 variants válidos, cada
- * um com título + descrição + hashtags sanitizadas.
+ * Garante que a plataforma tenha EXATAMENTE 3 variants, cada um com
+ * pelo menos TÍTULO (campo essencial — o usuário clica nele).
  *
- * O schema pede 3; este é o fallback defensivo:
- *   - menos que 3 variants válidos: completa com cópias do primeiro válido
- *     (UI mostra os 3 mesmo que duas tenham o mesmo conteúdo — o usuário
- *     pelo menos consegue interagir sem quebrar a renderização).
- *   - mais que 3: trunca nos 3 primeiros.
- *   - nenhum variant válido: devolve array vazio e o chamador decide.
+ * Estratégia tolerante: se o Gemini economizar descrição ou hashtags em
+ * algum variant, usamos fallback em vez de descartar o variant inteiro.
+ * Derrubar o variant só porque a description veio vazia resultava em
+ * "A IA não retornou resultados válidos" no front — o título é o que
+ * importa pra UX, o resto recuperamos do primeiro variant que veio cheio.
  */
 function normalizeVariants(raw) {
   if (!Array.isArray(raw)) return [];
 
-  const clean = raw
+  // Primeiro passe: aceita qualquer variant com título não-vazio.
+  const partial = raw
     .map((v) => {
       if (!v || typeof v !== "object") return null;
       const title = typeof v.title === "string" ? v.title.trim() : "";
+      if (!title) return null;
       const description =
         typeof v.description === "string" ? v.description.trim() : "";
       const hashtags = sanitizeHashtags(v.hashtags);
-      if (!title || !description || hashtags.length === 0) return null;
       return { title, description, hashtags };
     })
     .filter(Boolean);
 
-  if (clean.length === 0) return [];
+  if (partial.length === 0) return [];
 
-  while (clean.length < 3) clean.push(clean[0]);
-  return clean.slice(0, 3);
+  // Segundo passe: preenche descrição/hashtags vazias com fallback do
+  // primeiro variant que veio completo — mantém o "card inteiro" do UI.
+  const withDescription = partial.find((v) => v.description.length > 0);
+  const withHashtags = partial.find((v) => v.hashtags.length > 0);
+
+  const filled = partial.map((v) => ({
+    title: v.title,
+    description:
+      v.description || withDescription?.description || "",
+    hashtags: v.hashtags.length > 0 ? v.hashtags : withHashtags?.hashtags ?? [],
+  }));
+
+  // Terceiro passe: garante 3 (duplica o primeiro se faltarem).
+  while (filled.length < 3) filled.push(filled[0]);
+  return filled.slice(0, 3);
 }
 
 /**

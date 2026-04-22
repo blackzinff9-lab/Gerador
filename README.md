@@ -74,6 +74,18 @@ npm install
 5. Copie a chave.
 6. (Recomendado) clique **Restrict key** e restrinja à **YouTube Data API v3**.
 
+**Credenciais OAuth do Google (pro login):**
+1. No MESMO projeto do passo acima, vá em **APIs & Services → OAuth consent screen**.
+2. Escolha **External**, preencha nome do app, e-mail de suporte, adicione o domínio do Vercel em **Authorized domains** e salve.
+3. Vá em **Credentials → Create Credentials → OAuth client ID**.
+4. **Application type**: Web application. Nome: `ENGAJAI`.
+5. Em **Authorized JavaScript origins** adicione `http://localhost:3000` e `https://SEU-APP.vercel.app`.
+6. Em **Authorized redirect URIs** adicione `http://localhost:3000/api/auth/callback/google` e `https://SEU-APP.vercel.app/api/auth/callback/google`.
+7. Copie **Client ID** e **Client Secret**.
+
+**Segredo do NextAuth:**
+Gere um valor aleatório no terminal: `openssl rand -base64 32`. Essa string vai no `NEXTAUTH_SECRET`.
+
 ### 4. Criar o arquivo `.env.local`
 
 Na raiz do projeto, copie o exemplo e preencha:
@@ -87,7 +99,13 @@ Abra `.env.local` e cole as duas chaves:
 ```
 GEMINI_API_KEY=AIza...sua_chave_gemini
 YOUTUBE_API_KEY=AIza...sua_chave_youtube
+NEXTAUTH_SECRET=o_valor_aleatorio_que_voce_gerou
+NEXTAUTH_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxxxx
 ```
+
+> Em produção no Vercel, troque `NEXTAUTH_URL` pela URL final (ex.: `https://engajai.vercel.app`).
 
 ### 5. Rodar localmente
 
@@ -127,7 +145,15 @@ git push -u origin main
 4. **ANTES de clicar em Deploy**, expanda **Environment Variables** e adicione:
    - `GEMINI_API_KEY` = sua chave do Gemini
    - `YOUTUBE_API_KEY` = sua chave do YouTube
+   - `NEXTAUTH_SECRET` = o valor aleatório (`openssl rand -base64 32`)
+   - `NEXTAUTH_URL` = `https://SEU-APP.vercel.app` (com o domínio real depois do deploy)
+   - `GOOGLE_CLIENT_ID` = sua credencial OAuth do Google
+   - `GOOGLE_CLIENT_SECRET` = o secret da mesma credencial
 5. Clique **Deploy**. Em 1–2 minutos, o Vercel te dá uma URL pública.
+6. **Pós-deploy**: volte no Google Cloud e adicione a URL final do Vercel em
+   **Authorized JavaScript origins** e em **Authorized redirect URIs**
+   (`https://SEU-APP.vercel.app/api/auth/callback/google`). Sem isso, o botão
+   "Entrar com Google" retorna erro `redirect_uri_mismatch`.
 
 ### 4. Atualizações futuras
 

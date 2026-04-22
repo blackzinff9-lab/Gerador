@@ -57,10 +57,13 @@ export const responseSchema = {
                       },
                     },
                     required: ["tag", "level"],
-                    propertyOrdering: ["tag", "level"],
                   },
-                  minItems: 10,
-                  maxItems: 15,
+                  // 8 min (antes 10) — 3 variants × 3 plataformas × 10 tags
+                  // explodia o output. 8 já é suficiente pra cobrir mix
+                  // amplas+nicho+long-tail e segura o JSON dentro do teto
+                  // de tokens sem truncar.
+                  minItems: 8,
+                  maxItems: 12,
                 },
               },
               required: ["title", "description", "hashtags"],

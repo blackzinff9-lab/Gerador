@@ -54,14 +54,38 @@ export async function generate({
 
   const text = response?.text;
   if (!text) {
-    throw new Error("Gemini retornou resposta vazia.");
+    // Alguns fracassos "silenciosos" do Gemini vêm como texto vazio com um
+    // finishReason indicativo (MAX_TOKENS, SAFETY, etc). Logar isso ajuda
+    // a diagnosticar em prod sem precisar reproduzir.
+    const finish =
+      response?.candidates?.[0]?.finishReason ??
+      response?.promptFeedback?.blockReason ??
+      "unknown";
+    console.error(
+      "[gemini] empty response. finishReason:",
+      finish,
+      "usageMetadata:",
+      response?.usageMetadata
+    );
+    throw new Error(`Gemini retornou resposta vazia (${finish}).`);
   }
 
   try {
     return JSON.parse(text);
   } catch (err) {
-    console.error("[gemini] JSON parse failed. Raw text:", text);
-    throw new Error("Resposta do Gemini não é JSON válido.");
+    // Log do começo/fim pra detectar truncamento (MAX_TOKENS) sem inundar
+    // o log com o JSON inteiro.
+    const head = text.slice(0, 200);
+    const tail = text.slice(-200);
+    console.error(
+      "[gemini] JSON parse failed. length:",
+      text.length,
+      "head:",
+      head,
+      "tail:",
+      tail
+    );
+    throw new Error("Resposta do Gemini não é JSON válido (possivelmente truncada).");
   }
 }
 
