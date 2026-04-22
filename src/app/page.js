@@ -3,6 +3,8 @@
 import { useState } from "react";
 import GeneratorForm from "@/components/GeneratorForm";
 import ResultCard from "@/components/ResultCard";
+import ScriptCard from "@/components/ScriptCard";
+import IdeasList from "@/components/IdeasList";
 import LoadingState from "@/components/LoadingState";
 import ErrorMessage from "@/components/ErrorMessage";
 import Footer from "@/components/Footer";
@@ -13,11 +15,22 @@ export default function HomePage() {
   const [result, setResult] = useState(null);
   const [lastPayload, setLastPayload] = useState(null);
 
+  // "Conteúdo infinito" — estado separado porque é uma chamada secundária
+  // feita depois do resultado principal e não queremos resetar o resultado
+  // ao fazê-la.
+  const [ideas, setIdeas] = useState(null);
+  const [ideasLoading, setIdeasLoading] = useState(false);
+  const [ideasError, setIdeasError] = useState(null);
+
   async function handleGenerate(payload) {
     setLoading(true);
     setError(null);
     setResult(null);
     setLastPayload(payload);
+    // Reset também as ideias — uma nova geração representa um novo tema,
+    // faria sentido revogar a lista anterior.
+    setIdeas(null);
+    setIdeasError(null);
 
     try {
       const res = await fetch("/api/generate", {
@@ -51,6 +64,56 @@ export default function HomePage() {
     if (lastPayload) handleGenerate(lastPayload);
   }
 
+  async function handleGenerateIdeas() {
+    if (!result || !lastPayload) return;
+
+    // seedTitles: pega o primeiro título de cada plataforma + os 3 da
+    // primeira (o máximo de variedade pro Gemini ter contexto da série).
+    const allTitles = (result.platforms ?? [])
+      .flatMap((p) => (Array.isArray(p.titles) ? p.titles : []))
+      .filter(Boolean);
+
+    const seedTitles = Array.from(new Set(allTitles)).slice(0, 9);
+
+    setIdeasLoading(true);
+    setIdeasError(null);
+
+    try {
+      const res = await fetch("/api/ideas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: lastPayload.topic,
+          language: lastPayload.language,
+          platform: lastPayload.platform,
+          seedTitles,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json.ok) {
+        setIdeasError(
+          json?.error?.message ??
+            "Não conseguimos gerar ideias agora. Tente de novo."
+        );
+        return;
+      }
+
+      setIdeas(json.data?.ideas ?? []);
+    } catch (e) {
+      console.error("[page] ideas fetch failed", e);
+      setIdeasError(
+        "Sem conexão agora. Verifique sua internet e tente novamente."
+      );
+    } finally {
+      setIdeasLoading(false);
+    }
+  }
+
+  const hasResults =
+    !!result && Array.isArray(result.platforms) && result.platforms.length > 0;
+
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col px-4 py-8 sm:py-12">
       <header className="mb-8 text-center animate-fade-in">
@@ -74,11 +137,34 @@ export default function HomePage() {
           <ErrorMessage message={error} onRetry={handleRetry} />
         )}
 
-        {result?.platforms?.length > 0 && !loading && (
+        {hasResults && !loading && (
           <div className="space-y-4 animate-fade-in">
+            {/* Roteiro aparece UMA vez no topo — é transversal às plataformas */}
+            {result.script && <ScriptCard script={result.script} />}
+
             {result.platforms.map((platform) => (
               <ResultCard key={platform.name} platform={platform} />
             ))}
+
+            {/* Conteúdo infinito — só oferece depois que já tem resultado */}
+            {!ideas && !ideasLoading && !ideasError && (
+              <button
+                type="button"
+                onClick={handleGenerateIdeas}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-brand-primary bg-white px-5 py-3.5 font-display font-bold text-brand-primary shadow-sm transition hover:bg-brand-primary hover:text-white"
+              >
+                Gerar conteúdo infinito (10 próximos vídeos)
+              </button>
+            )}
+
+            {(ideasLoading || ideasError || ideas) && (
+              <IdeasList
+                ideas={ideas}
+                loading={ideasLoading}
+                error={ideasError}
+                onRetry={handleGenerateIdeas}
+              />
+            )}
           </div>
         )}
       </section>

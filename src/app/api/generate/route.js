@@ -24,6 +24,11 @@ export const maxDuration = 30;         // Vercel Hobby permite até 60s
 
 const FINAL_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
+// Prefixo v2: mudamos o schema (3 títulos, hashtags coloridas, script opcional).
+// Troca de prefixo invalida automaticamente qualquer cache antigo em warm
+// instances sem precisar limpar nada manualmente.
+const CACHE_PREFIX = "gen2";
+
 export async function POST(request) {
   // 1) Parse + validação
   let body;
@@ -37,14 +42,24 @@ export async function POST(request) {
   if (!validation.ok) {
     return errorResponse(400, validation.error.code, validation.error.message);
   }
-  const { platform, platforms, topic, language } = validation.data;
+  const { platform, platforms, topic, language, hasVideo, wantsScript } =
+    validation.data;
 
   const ip = getClientIp(request);
 
   // 2) Cache check (resposta final) — vem ANTES do rate limit porque
   //    cached response não consome quota do Gemini, então não faz sentido
   //    contar contra o limite do usuário.
-  const cacheKey = `gen:${platform}:${topic.toLowerCase()}:${language}`;
+  //    A cache key inclui hasVideo/wantsScript pra não servir resposta sem
+  //    script a quem pediu script (ou vice-versa).
+  const cacheKey = [
+    CACHE_PREFIX,
+    platform,
+    topic.toLowerCase(),
+    language,
+    hasVideo,
+    wantsScript ? "1" : "0",
+  ].join(":");
   const cached = cache.get(cacheKey);
   if (cached) {
     return Response.json({ ...cached, fromCache: true });
@@ -80,12 +95,21 @@ export async function POST(request) {
     platforms,
     language,
     youtubeContext,
+    hasVideo,
+    wantsScript,
   });
 
   // 6) Chamar Gemini
+  //    maxTokens maior (3072) porque agora são 3 títulos por plataforma +
+  //    hashtags como objetos (ocupam mais tokens que strings simples) +
+  //    possível roteiro no topo.
   let generated;
   try {
-    generated = await generate({ system: SYSTEM_PROMPT, user: userPrompt });
+    generated = await generate({
+      system: SYSTEM_PROMPT,
+      user: userPrompt,
+      maxTokens: 3072,
+    });
   } catch (err) {
     console.error("[api/generate] Gemini error:", err?.message);
     if (isQuotaError(err)) {
@@ -102,14 +126,18 @@ export async function POST(request) {
     );
   }
 
-  // 7) Filtrar só as plataformas pedidas + sanitizar hashtags
+  // 7) Filtrar só as plataformas pedidas + sanitizar hashtags + normalizar
+  //    títulos (o schema exige 3, mas defendemos contra Gemini devolvendo menos).
   const wanted = new Set(platforms);
   const filtered = {
     platforms: (generated?.platforms ?? [])
       .filter((p) => wanted.has(p?.name))
       .map((p) => ({
-        ...p,
+        name: p.name,
+        titles: normalizeTitles(p.titles),
+        description: typeof p.description === "string" ? p.description : "",
         hashtags: sanitizeHashtags(p.hashtags),
+        editingStyle: p.editingStyle ?? null,
       })),
   };
 
@@ -121,10 +149,24 @@ export async function POST(request) {
     );
   }
 
+  // 7.5) Roteiro (opcional): só repassa se o user pediu E se o Gemini devolveu.
+  let script = null;
+  if (wantsScript && generated?.script && typeof generated.script === "object") {
+    const s = generated.script;
+    script = {
+      hook: typeof s.hook === "string" ? s.hook : "",
+      body: typeof s.body === "string" ? s.body : "",
+      cta: typeof s.cta === "string" ? s.cta : "",
+    };
+  }
+
   // 8) Cache + resposta
   const payload = {
     ok: true,
-    data: filtered,
+    data: {
+      ...filtered,
+      script,
+    },
     usedRealData: {
       youtube: youtubeContext.length > 0,
     },
@@ -153,9 +195,6 @@ function errorResponse(status, code, message) {
  *      proxy que normalize este header, ele É spoofável. Por isso só entra
  *      depois do header específico da Vercel.
  *   3. `x-real-ip` — último recurso.
- *
- * Em todos os casos, pegamos o valor mais à esquerda (cliente original),
- * confiando que a cadeia de proxies à frente é honesta.
  */
 function getClientIp(request) {
   const vercelIp = request.headers.get("x-vercel-forwarded-for");
@@ -187,25 +226,56 @@ function buildRateLimitMessage(retryAfterSeconds) {
 }
 
 /**
- * Garante que todas as hashtags começam com '#', removem duplicadas, vazias
- * e caracteres inválidos. Limita a 15.
+ * Garante que a plataforma tenha EXATAMENTE 3 títulos não-vazios.
+ * O schema do Gemini exige 3, mas fallback defensivo:
+ *  - menos que 3: preenche com cópias do primeiro título disponível
+ *    (evita renderização quebrada; UI mostra as 3 mesmo que iguais).
+ *  - mais que 3: trunca nos 3 primeiros.
+ *  - nenhum título válido: devolve array vazio e o chamador decide.
+ */
+function normalizeTitles(raw) {
+  if (!Array.isArray(raw)) return [];
+  const clean = raw
+    .filter((t) => typeof t === "string")
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+
+  if (clean.length === 0) return [];
+  while (clean.length < 3) clean.push(clean[0]);
+  return clean.slice(0, 3);
+}
+
+/**
+ * Sanitiza hashtags vindas do Gemini no novo formato {tag, level}.
+ * - Garante que todas as tags começam com '#'.
+ * - Remove duplicadas (case-insensitive), vazias, com espaço interno.
+ * - Valida level ∈ {"green","yellow","red"} (default "yellow" se inválido).
+ * - Limita a 15.
  */
 function sanitizeHashtags(raw) {
   if (!Array.isArray(raw)) return [];
   const seen = new Set();
   const result = [];
-  for (const tag of raw) {
-    if (typeof tag !== "string") continue;
-    const trimmed = tag.trim();
-    if (!trimmed) continue;
-    const withHash = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
-    // remove espaços internos e caracteres inválidos
+  const allowedLevels = new Set(["green", "yellow", "red"]);
+
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+
+    const tagRaw = typeof item.tag === "string" ? item.tag.trim() : "";
+    if (!tagRaw) continue;
+
+    const withHash = tagRaw.startsWith("#") ? tagRaw : `#${tagRaw}`;
     const clean = withHash.replace(/\s+/g, "");
     if (clean.length < 2 || clean.length > 40) continue;
+
     const key = clean.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    result.push(clean);
+
+    const levelRaw = typeof item.level === "string" ? item.level.toLowerCase().trim() : "";
+    const level = allowedLevels.has(levelRaw) ? levelRaw : "yellow";
+
+    result.push({ tag: clean, level });
     if (result.length >= 15) break;
   }
   return result;

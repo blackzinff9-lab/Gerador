@@ -1,0 +1,160 @@
+// Endpoint "Conteúdo Infinito" — gera 10 próximos vídeos interligados
+// a partir de um tema-semente e opcionalmente dos títulos já gerados.
+//
+// Justificativa: depois que o usuário vê os resultados iniciais, oferecer
+// 10 ideias de continuação cria "playlist de algoritmo" — vídeos do mesmo
+// nicho que puxam o mesmo público, aumentando retenção do canal.
+//
+// Fluxo idêntico ao /api/generate:
+//   validação → cache → rate limit → Gemini → sanitização → resposta.
+
+import { validateIdeasBody } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/ratelimit";
+import { cache } from "@/lib/cache";
+import { generate, isQuotaError } from "@/lib/gemini";
+import { IDEAS_SYSTEM_PROMPT, buildIdeasPrompt } from "@/lib/prompts";
+import { ideasResponseSchema } from "@/lib/schema";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
+const IDEAS_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
+const CACHE_PREFIX = "ideas2";                 // v2 — permite invalidar no futuro
+
+export async function POST(request) {
+  // 1) Parse + validação
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse(
+      400,
+      "INVALID_INPUT",
+      "Requisição inválida (JSON malformado)."
+    );
+  }
+
+  const validation = validateIdeasBody(body);
+  if (!validation.ok) {
+    return errorResponse(400, validation.error.code, validation.error.message);
+  }
+  const { topic, language, platform, seedTitles } = validation.data;
+
+  const ip = getClientIp(request);
+
+  // 2) Cache — não inclui seedTitles na chave porque o próprio tema já
+  //    determina a "série". Reutilizar entre usuários que pedirem ideias
+  //    sobre o mesmo tema é desejável.
+  const cacheKey = [
+    CACHE_PREFIX,
+    platform,
+    topic.toLowerCase(),
+    language,
+  ].join(":");
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    return Response.json({ ...cached, fromCache: true });
+  }
+
+  // 3) Rate limit — mesma conta do /api/generate (é uma chamada Gemini).
+  const rl = checkRateLimit(ip);
+  if (!rl.allowed) {
+    return errorResponse(
+      429,
+      "RATE_LIMITED",
+      buildRateLimitMessage(rl.retryAfterSeconds)
+    );
+  }
+
+  // 4) Prompt + chamada
+  const userPrompt = buildIdeasPrompt({ topic, language, platform, seedTitles });
+
+  let generated;
+  try {
+    generated = await generate({
+      system: IDEAS_SYSTEM_PROMPT,
+      user: userPrompt,
+      schema: ideasResponseSchema,
+      maxTokens: 2048, // 10 itens × ~(título + 20 palavras de hook) cabe aqui
+      temperature: 0.9, // ligeiramente mais criativo pra variedade entre as 10
+    });
+  } catch (err) {
+    console.error("[api/ideas] Gemini error:", err?.message);
+    if (isQuotaError(err)) {
+      return errorResponse(
+        503,
+        "GEMINI_QUOTA_EXHAUSTED",
+        "Atingimos o limite diário de gerações. Volte amanhã ou tente mais tarde."
+      );
+    }
+    return errorResponse(
+      502,
+      "GEMINI_FAILED",
+      "Não conseguimos gerar as ideias agora. Tente de novo em alguns segundos."
+    );
+  }
+
+  // 5) Sanitização defensiva
+  const ideas = sanitizeIdeas(generated?.ideas);
+  if (ideas.length === 0) {
+    return errorResponse(
+      502,
+      "GEMINI_FAILED",
+      "A IA não retornou ideias válidas. Tente de novo."
+    );
+  }
+
+  // 6) Cache + resposta
+  const payload = { ok: true, data: { ideas } };
+  cache.set(cacheKey, payload, IDEAS_CACHE_TTL_MS);
+
+  return Response.json(payload);
+}
+
+function errorResponse(status, code, message) {
+  return Response.json(
+    { ok: false, error: { code, message } },
+    { status }
+  );
+}
+
+function getClientIp(request) {
+  const vercelIp = request.headers.get("x-vercel-forwarded-for");
+  if (vercelIp) return vercelIp.split(",")[0].trim();
+  const xff = request.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0].trim();
+  return request.headers.get("x-real-ip") ?? "unknown";
+}
+
+function buildRateLimitMessage(retryAfterSeconds) {
+  const s = Number(retryAfterSeconds) || 60;
+  if (s < 120) return `Você está gerando rápido demais! Tente de novo em ${s}s.`;
+  if (s < 3600) {
+    const minutes = Math.ceil(s / 60);
+    return `Você está gerando rápido demais! Tente de novo em ${minutes} min.`;
+  }
+  const hours = Math.ceil(s / 3600);
+  return `Você atingiu o limite diário de gerações. Volte em ~${hours}h.`;
+}
+
+/**
+ * Remove ideias vazias/duplicadas e limita a 10.
+ */
+function sanitizeIdeas(raw) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set();
+  const result = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const title = typeof item.title === "string" ? item.title.trim() : "";
+    const hook = typeof item.hook === "string" ? item.hook.trim() : "";
+    if (!title || !hook) continue;
+    const key = title.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ title, hook });
+    if (result.length >= 10) break;
+  }
+  return result;
+}

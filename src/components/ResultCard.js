@@ -3,12 +3,12 @@
 import CopyButton from "./CopyButton";
 import HashtagList from "./HashtagList";
 
+// Sem emojis — visual mais profissional. A cor e o label identificam.
 const PLATFORM_META = {
-  youtube: { label: "YouTube", emoji: "▶️", color: "text-red-600" },
-  tiktok: { label: "TikTok", emoji: "🎵", color: "text-brand-dark" },
+  youtube: { label: "YouTube", color: "text-red-600" },
+  tiktok: { label: "TikTok", color: "text-brand-dark" },
   instagram: {
     label: "Instagram Reels",
-    emoji: "📸",
     color: "text-pink-600",
   },
 };
@@ -16,35 +16,42 @@ const PLATFORM_META = {
 export default function ResultCard({ platform }) {
   const meta = PLATFORM_META[platform.name] ?? {
     label: platform.name,
-    emoji: "✨",
     color: "text-brand-dark",
   };
 
+  const titles = Array.isArray(platform.titles) ? platform.titles : [];
+
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-      <header className="mb-4 flex items-center gap-2">
-        <span className="text-2xl" aria-hidden="true">
-          {meta.emoji}
-        </span>
+      <header className="mb-4">
         <h2 className={`font-display text-xl font-bold ${meta.color}`}>
           {meta.label}
         </h2>
       </header>
 
       <div className="space-y-5">
-        <Section
-          title="Título viral"
-          copyText={platform.title}
-        >
-          <p className="text-lg font-semibold leading-snug text-brand-dark">
-            {platform.title}
-          </p>
+        <Section title="Títulos virais (3 opções)">
+          <ol className="space-y-2">
+            {titles.map((t, idx) => (
+              <li
+                key={`${idx}-${t.slice(0, 16)}`}
+                className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+              >
+                <div className="flex-1">
+                  <span className="mr-2 inline-block rounded-full bg-brand-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-primary">
+                    Opção {idx + 1}
+                  </span>
+                  <span className="text-base font-semibold leading-snug text-brand-dark">
+                    {t}
+                  </span>
+                </div>
+                <CopyButton text={t} label="Copiar" />
+              </li>
+            ))}
+          </ol>
         </Section>
 
-        <Section
-          title="Descrição"
-          copyText={platform.description}
-        >
+        <Section title="Descrição" copyText={platform.description}>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-brand-dark">
             {platform.description}
           </p>

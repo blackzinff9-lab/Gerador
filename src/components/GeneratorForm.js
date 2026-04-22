@@ -19,6 +19,18 @@ export default function GeneratorForm({ onSubmit, loading }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [localError, setLocalError] = useState(null);
 
+  // Novo fluxo: o usuário indica se já filmou ou ainda vai filmar.
+  // Se ainda vai filmar, opcionalmente pede um roteiro pronto.
+  const [hasVideo, setHasVideo] = useState("ready"); // "ready" | "making"
+  const [wantsScript, setWantsScript] = useState(false);
+
+  function handleHasVideoChange(next) {
+    setHasVideo(next);
+    // Vídeo "pronto" não precisa de roteiro — reseta o sub-estado
+    // pra manter o submit coerente.
+    if (next === "ready") setWantsScript(false);
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
     const trimmed = topic.trim();
@@ -33,7 +45,13 @@ export default function GeneratorForm({ onSubmit, loading }) {
     }
 
     setLocalError(null);
-    onSubmit({ platform, topic: trimmed, language });
+    onSubmit({
+      platform,
+      topic: trimmed,
+      language,
+      hasVideo,
+      wantsScript: hasVideo === "making" ? wantsScript : false,
+    });
   }
 
   const remaining = MAX_TOPIC - topic.length;
@@ -72,6 +90,20 @@ export default function GeneratorForm({ onSubmit, loading }) {
           <span aria-live="polite">{remaining} caracteres</span>
         </p>
       </div>
+
+      <VideoStatusPicker
+        value={hasVideo}
+        onChange={handleHasVideoChange}
+        disabled={loading}
+      />
+
+      {hasVideo === "making" && (
+        <ScriptPicker
+          value={wantsScript}
+          onChange={setWantsScript}
+          disabled={loading}
+        />
+      )}
 
       <details
         className="rounded-lg bg-slate-50 px-3 py-2"
@@ -123,9 +155,126 @@ export default function GeneratorForm({ onSubmit, loading }) {
             Gerando ideias…
           </>
         ) : (
-          <>🚀 Gerar ideias virais</>
+          "Gerar ideias virais"
         )}
       </button>
     </form>
+  );
+}
+
+/**
+ * 2 cards lado a lado: "Já está pronto" vs. "Ainda estou fazendo".
+ * Essa pergunta muda o que o app vai gerar (com ou sem roteiro).
+ */
+function VideoStatusPicker({ value, onChange, disabled }) {
+  const options = [
+    {
+      id: "ready",
+      label: "Já está pronto",
+      hint: "Só preciso do título, descrição e hashtags",
+    },
+    {
+      id: "making",
+      label: "Ainda estou fazendo",
+      hint: "Posso precisar de ajuda com o roteiro",
+    },
+  ];
+  return (
+    <fieldset className="space-y-2">
+      <legend className="mb-2 block text-sm font-semibold text-brand-dark">
+        Seu vídeo
+      </legend>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {options.map((o) => {
+          const isActive = value === o.id;
+          return (
+            <label
+              key={o.id}
+              className={[
+                "flex cursor-pointer flex-col items-start gap-0.5 rounded-xl border-2 px-3 py-3 text-left transition",
+                isActive
+                  ? "border-brand-primary bg-brand-primary/10 shadow-sm"
+                  : "border-slate-200 bg-white hover:border-brand-primary/40",
+                disabled && "cursor-not-allowed opacity-50",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              <input
+                type="radio"
+                name="hasVideo"
+                value={o.id}
+                checked={isActive}
+                onChange={() => onChange(o.id)}
+                disabled={disabled}
+                className="sr-only"
+              />
+              <span className="text-sm font-semibold text-brand-dark">
+                {o.label}
+              </span>
+              <span className="text-xs text-brand-muted">{o.hint}</span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+/**
+ * Aparece só quando `hasVideo === "making"`.
+ * 2 opções: "Sim, me ajuda" / "Não, só os títulos".
+ */
+function ScriptPicker({ value, onChange, disabled }) {
+  const options = [
+    {
+      id: true,
+      label: "Sim, me ajuda",
+      hint: "Gera um roteiro (hook, desenvolvimento, CTA)",
+    },
+    {
+      id: false,
+      label: "Não, só os títulos",
+      hint: "Vou escrever o roteiro sozinho",
+    },
+  ];
+  return (
+    <fieldset className="space-y-2 rounded-xl bg-slate-50 p-3">
+      <legend className="mb-2 block text-sm font-semibold text-brand-dark">
+        Quer uma sugestão de roteiro?
+      </legend>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {options.map((o) => {
+          const isActive = value === o.id;
+          return (
+            <label
+              key={String(o.id)}
+              className={[
+                "flex cursor-pointer flex-col items-start gap-0.5 rounded-lg border-2 bg-white px-3 py-2.5 text-left transition",
+                isActive
+                  ? "border-brand-primary bg-brand-primary/10 shadow-sm"
+                  : "border-slate-200 hover:border-brand-primary/40",
+                disabled && "cursor-not-allowed opacity-50",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              <input
+                type="radio"
+                name="wantsScript"
+                checked={isActive}
+                onChange={() => onChange(o.id)}
+                disabled={disabled}
+                className="sr-only"
+              />
+              <span className="text-sm font-semibold text-brand-dark">
+                {o.label}
+              </span>
+              <span className="text-xs text-brand-muted">{o.hint}</span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }

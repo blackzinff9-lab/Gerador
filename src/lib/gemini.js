@@ -20,11 +20,24 @@ function getClient() {
 }
 
 /**
- * Gera ideias virais estruturadas.
+ * Gera JSON estruturado via Gemini.
  * Lança erro se a chave não estiver configurada ou se o Gemini falhar.
  * O consumidor deve tratar a exceção e traduzir para HTTP amigável.
+ *
+ * @param {object} params
+ * @param {string} params.system       - system instruction
+ * @param {string} params.user         - user prompt
+ * @param {object} [params.schema]     - response schema (OpenAPI-like). Default: responseSchema do gerador principal.
+ * @param {number} [params.maxTokens]  - limite de tokens da saída. Default 2048 (gerador principal). O endpoint /api/ideas pode precisar mais porque são 10 itens.
+ * @param {number} [params.temperature] - criatividade. Default 0.85.
  */
-export async function generate({ system, user }) {
+export async function generate({
+  system,
+  user,
+  schema = responseSchema,
+  maxTokens = 2048,
+  temperature = 0.85,
+}) {
   const ai = getClient();
 
   const response = await ai.models.generateContent({
@@ -33,9 +46,9 @@ export async function generate({ system, user }) {
     config: {
       systemInstruction: system,
       responseMimeType: "application/json",
-      responseSchema,
-      temperature: 0.85,
-      maxOutputTokens: 2048,
+      responseSchema: schema,
+      temperature,
+      maxOutputTokens: maxTokens,
     },
   });
 

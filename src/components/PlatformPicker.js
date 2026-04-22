@@ -1,10 +1,13 @@
 "use client";
 
+// Seleção de plataforma. Sem emojis — linguagem mais profissional, o
+// nome da plataforma por si só já identifica (e a marca da plataforma
+// tem mais peso visual que um emoji genérico).
 const PLATFORMS = [
-  { id: "all", label: "Todas", emoji: "🌐", hint: "YT + TikTok + Reels" },
-  { id: "youtube", label: "YouTube", emoji: "▶️", hint: "Shorts e longo" },
-  { id: "tiktok", label: "TikTok", emoji: "🎵", hint: "For You Page" },
-  { id: "instagram", label: "Reels", emoji: "📸", hint: "Instagram Reels" },
+  { id: "all", label: "Todas", hint: "YT + TikTok + Reels" },
+  { id: "youtube", label: "YouTube", hint: "Shorts e longo" },
+  { id: "tiktok", label: "TikTok", hint: "For You Page" },
+  { id: "instagram", label: "Reels", hint: "Instagram Reels" },
 ];
 
 export default function PlatformPicker({ value, onChange, disabled }) {
@@ -20,7 +23,7 @@ export default function PlatformPicker({ value, onChange, disabled }) {
             <label
               key={p.id}
               className={[
-                "flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 px-3 py-3 text-center transition",
+                "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 px-3 py-4 text-center transition",
                 isActive
                   ? "border-brand-primary bg-brand-primary/10 shadow-sm"
                   : "border-slate-200 bg-white hover:border-brand-primary/40",
@@ -38,10 +41,7 @@ export default function PlatformPicker({ value, onChange, disabled }) {
                 disabled={disabled}
                 className="sr-only"
               />
-              <span className="text-2xl" aria-hidden="true">
-                {p.emoji}
-              </span>
-              <span className="text-sm font-semibold text-brand-dark">
+              <span className="font-display text-base font-bold text-brand-dark">
                 {p.label}
               </span>
               <span className="text-xs text-brand-muted">{p.hint}</span>
