@@ -10,7 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@google/genai": "^1.0.0",
+    "@google/generative-ai": "^0.14.1",
     "next": "^15.0.0",
     "next-auth": "^4.24.14",
     "react": "^18.3.1",

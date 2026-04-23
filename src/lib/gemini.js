@@ -1,24 +1,24 @@
-// Wrapper do SDK @google/genai.
+// Wrapper do SDK @google/generative-ai.
 // Uma única função: generate({ system, user }) → JSON parseado.
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { responseSchema } from "./schema.js";
 
-let clientInstance = null;
+let genAI = null;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function getClient() {
-  if (clientInstance) return clientInstance;
+  if (genAI) return genAI;
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "GEMINI_API_KEY não configurado. Adicione no .env.local ou nas Environment Variables do Vercel."
+      "GEMINI_API_KEY não configurado. Adicione nas Environment Variables do Vercel/Railway."
     );
   }
-  clientInstance = new GoogleGenAI({ apiKey });
-  return clientInstance;
+  genAI = new GoogleGenerativeAI(apiKey);
+  return genAI;
 }
 
 /**
@@ -43,25 +43,28 @@ export async function generate({
   retries = 3,
 }) {
   const ai = getClient();
+  const model = ai.getGenerativeModel({
+    model: "gemini-1.5-flash",
+    systemInstruction: system,
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: schema,
+      temperature,
+      maxOutputTokens: maxTokens,
+    },
+  });
+
   let lastError = null;
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const response = await ai.getGenerativeModel({
-        model: "gemini-1.5-flash",
-        systemInstruction: system,
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: schema,
-          temperature,
-          maxOutputTokens: maxTokens,
-        },
-      }).generateContent(user);
+      const result = await model.generateContent(user);
+      const response = result.response;
 
-      const text = response.response.text();
+      const text = response.text();
       if (!text) {
-        const finishReason = response.response.candidates?.[0]?.finishReason;
-        const safetyRatings = response.response.candidates?.[0]?.safetyRatings;
+        const finishReason = response.candidates?.[0]?.finishReason;
+        const safetyRatings = response.candidates?.[0]?.safetyRatings;
         console.error(
           `[gemini] empty response on attempt ${attempt}/${retries}. finishReason: ${finishReason}`,
           "safetyRatings:",
