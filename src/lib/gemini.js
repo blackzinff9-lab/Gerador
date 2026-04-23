@@ -44,7 +44,7 @@ export async function generate({
 }) {
   const ai = getClient();
   const model = ai.getGenerativeModel({
-    model: "gemini-1.5-flash",
+    model: "gemini-1.0-pro",
     systemInstruction: system,
     generationConfig: {
       responseMimeType: "application/json",
