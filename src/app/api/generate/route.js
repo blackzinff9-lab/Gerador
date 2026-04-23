@@ -18,7 +18,7 @@ import { fetchYouTubeTrends } from "@/lib/youtube";
 import { generate, isQuotaError } from "@/lib/gemini";
 import { SYSTEM_PROMPT, buildUserPrompt } from "@/lib/prompts";
 
-// export const runtime = "edge"; // Removido: Incompatível com ambiente Node.js padrão do Railway
+export const maxDuration = 60; // Aumenta o timeout da serverless function para 60s
 export const dynamic = "force-dynamic"; // nunca pré-renderize
 
 const FINAL_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
@@ -75,10 +75,6 @@ export async function POST(request) {
     );
   }
 
-  // TODO: Monetização — PRO GATE aqui
-  //   Free: 3 requests/dia, max 1 plataforma
-  //   Pro: ilimitado, todas plataformas, export CSV
-
   // 4) Fetch de tendências do YouTube (tolerante a falhas)
   let youtubeContext = [];
   try {
@@ -99,17 +95,11 @@ export async function POST(request) {
   });
 
   // 6) Chamar Gemini
-  //    maxTokens 8192: cada plataforma traz 3 variants COMPLETOS (título +
-  //    descrição + 8-12 hashtags). 3 plataformas × 3 variants = 9 blocos +
-  //    editingStyle + roteiro com profundidade. 6144 era apertado e às vezes
-  //    cortava o JSON (MAX_TOKENS) → "Não conseguimos gerar ideias agora".
-  //    8192 dá folga confortável.
   let generated;
   try {
     generated = await generate({
       system: SYSTEM_PROMPT,
       user: userPrompt,
-      maxTokens: 8192,
     });
   } catch (err) {
     console.error("[api/generate] Gemini error:", err?.message);
@@ -173,10 +163,6 @@ export async function POST(request) {
     },
   };
   
-  // Alterado para compatibilidade com Railway: `waitUntil` é específico da Edge runtime da Vercel.
-  // Em um ambiente Node.js padrão, podemos usar `await` ou simplesmente
-  // invocar sem `await` se não precisarmos bloquear a resposta.
-  // Nesse caso, `await` é seguro e garante que o cache seja salvo.
   await cache.set(cacheKey, payload, FINAL_CACHE_TTL_MS);
 
   return Response.json(payload);
@@ -189,13 +175,6 @@ function errorResponse(status, code, message) {
   );
 }
 
-/**
- * Extrai o IP do cliente priorizando headers padrão de proxies.
- *
- * Ordem:
- *   1. `x-forwarded-for` — Usado por Railway, Heroku, e a maioria dos proxies.
- *   2. `x-real-ip` — Fallback comum.
- */
 function getClientIp(request) {
   const xff = request.headers.get("x-forwarded-for");
   if (xff) return xff.split(",")[0].trim();
@@ -203,13 +182,6 @@ function getClientIp(request) {
   return request.headers.get("x-real-ip") ?? "unknown";
 }
 
-
-/**
- * Mensagem de rate limit adaptada ao tempo de espera:
- *   < 2 min   → \"tente em Xs\"
- *   < 1 hora  → \"tente em X minutos\"
- *   >= 1 hora → \"você atingiu o limite diário, volte em Xh\"
- */
 function buildRateLimitMessage(retryAfterSeconds) {
   const s = Number(retryAfterSeconds) || 60;
   if (s < 120) {
@@ -223,20 +195,9 @@ function buildRateLimitMessage(retryAfterSeconds) {
   return `Você atingiu o limite diário de gerações. Volte em ~${hours}h.`;
 }
 
-/**
- * Garante que a plataforma tenha EXATAMENTE 3 variants, cada um com
- * pelo menos TÍTULO (campo essencial — o usuário clica nele).
- *
- * Estratégia tolerante: se o Gemini economizar descrição ou hashtags em
- * algum variant, usamos fallback em vez de descartar o variant inteiro.
- * Derrubar o variant só porque a description veio vazia resultava em
- * \"A IA não retornou resultados válidos\" no front — o título é o que
- * importa pra UX, o resto recuperamos do primeiro variant que veio cheio.
- */
 function normalizeVariants(raw) {
   if (!Array.isArray(raw)) return [];
 
-  // Primeiro passe: aceita qualquer variant com título não-vazio.
   const partial = raw
     .map((v) => {
       if (!v || typeof v !== "object") return null;
@@ -251,8 +212,6 @@ function normalizeVariants(raw) {
 
   if (partial.length === 0) return [];
 
-  // Segundo passe: preenche descrição/hashtags vazias com fallback do
-  // primeiro variant que veio completo — mantém o \"card inteiro\" do UI.
   const withDescription = partial.find((v) => v.description.length > 0);
   const withHashtags = partial.find((v) => v.hashtags.length > 0);
 
@@ -263,18 +222,10 @@ function normalizeVariants(raw) {
     hashtags: v.hashtags.length > 0 ? v.hashtags : withHashtags?.hashtags ?? [],
   }));
 
-  // Terceiro passe: garante 3 (duplica o primeiro se faltarem).
   while (filled.length < 3) filled.push(filled[0]);
   return filled.slice(0, 3);
 }
 
-/**
- * Sanitiza hashtags vindas do Gemini no formato {tag, level}.
- * - Garante que todas as tags começam com '#'.
- * - Remove duplicadas (case-insensitive), vazias, com espaço interno.
- * - Valida level ∈ {\"green\",\"yellow\",\"red\"} (default \"yellow\" se inválido).
- * - Limita a 15.
- */
 function sanitizeHashtags(raw) {
   if (!Array.isArray(raw)) return [];
   const seen = new Set();
