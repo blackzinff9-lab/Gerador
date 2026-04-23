@@ -44,11 +44,9 @@ export async function generate({
 }) {
   const ai = getClient();
   const model = ai.getGenerativeModel({
-    model: "gemini-1.0-pro",
+    model: "gemini-pro",
     systemInstruction: system,
     generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: schema,
       temperature,
       maxOutputTokens: maxTokens,
     },
