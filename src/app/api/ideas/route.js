@@ -79,11 +79,11 @@ export async function POST(request) {
       system: IDEAS_SYSTEM_PROMPT,
       user: userPrompt,
       schema: ideasResponseSchema,
-      // 4096 em vez dos 2048 anteriores: o schema pede EXATAMENTE 10 itens e,
-      // se o modelo "caprichar" em ganchos mais descritivos, 2048 podia cortar
-      // o JSON no meio — resultado: JSON inválido e erro genérico pro usuário.
-      // 4096 é folga de sobra sem custo prático (Gemini 2.5 Flash free-tier).
-      maxTokens: 4096,
+      // 8192 em vez de 4096. O schema pede EXATAMENTE 10 itens e, se o
+      // modelo "caprichar" em ganchos mais descritivos, um token limit
+      // baixo podia cortar o JSON no meio. 8192 é uma folga gigantesca que
+      // não custa nada a mais no free-tier do Gemini 1.5 Flash.
+      maxTokens: 8192,
       temperature: 0.9, // ligeiramente mais criativo pra variedade entre as 10
     });
   } catch (err) {

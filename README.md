@@ -226,4 +226,4 @@ Nenhum desses está ativo na v1 — foco é estabilizar o produto grátis primei
 
 ## Licença
 
-Uso pessoal e educativo. TikTok scraping é tecnicamente contra a ToS do TikTok — se for monetizar em escala, considere migrar para API oficial (RapidAPI, Apify, etc.).
+Uso pessoal e educativo. TikTok scraping é tecnicamente contra a ToS do TikTok — se for monetizar em escala, considere migrar para API oficial (RapidAPI, Apify, etc.). 
