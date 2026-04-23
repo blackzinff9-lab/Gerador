@@ -44,7 +44,7 @@ export async function generate({
 }) {
   const ai = getClient();
   const model = ai.getGenerativeModel({
-    model: "gemini-pro",
+    model: "gemini-1.5-flash",
     systemInstruction: system,
     generationConfig: {
       temperature,
