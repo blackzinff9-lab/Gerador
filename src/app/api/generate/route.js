@@ -18,9 +18,8 @@ import { fetchYouTubeTrends } from "@/lib/youtube";
 import { generate, isQuotaError } from "@/lib/gemini";
 import { SYSTEM_PROMPT, buildUserPrompt } from "@/lib/prompts";
 
-export const runtime = "nodejs";
+// export const runtime = "edge"; // Removido: Incompatível com ambiente Node.js padrão do Railway
 export const dynamic = "force-dynamic"; // nunca pré-renderize
-export const maxDuration = 60;         // Vercel Hobby permite até 60s — damos folga pro Gemini.
 
 const FINAL_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
@@ -60,14 +59,14 @@ export async function POST(request) {
     hasVideo,
     wantsScript ? "1" : "0",
   ].join(":");
-  const cached = cache.get(cacheKey);
+  const cached = await cache.get(cacheKey);
   if (cached) {
     return Response.json({ ...cached, fromCache: true });
   }
 
   // 3) Rate limit — só agora, antes da chamada cara ao Gemini.
   //    Protege a quota do free tier contra abuso (scripts, spam).
-  const rl = checkRateLimit(ip);
+  const rl = await checkRateLimit(ip);
   if (!rl.allowed) {
     return errorResponse(
       429,
@@ -173,7 +172,12 @@ export async function POST(request) {
       youtube: youtubeContext.length > 0,
     },
   };
-  cache.set(cacheKey, payload, FINAL_CACHE_TTL_MS);
+  
+  // Alterado para compatibilidade com Railway: `waitUntil` é específico da Edge runtime da Vercel.
+  // Em um ambiente Node.js padrão, podemos usar `await` ou simplesmente
+  // invocar sem `await` se não precisarmos bloquear a resposta.
+  // Nesse caso, `await` é seguro e garante que o cache seja salvo.
+  await cache.set(cacheKey, payload, FINAL_CACHE_TTL_MS);
 
   return Response.json(payload);
 }
@@ -186,33 +190,25 @@ function errorResponse(status, code, message) {
 }
 
 /**
- * Extrai o IP do cliente priorizando headers que NÃO são spoofáveis.
+ * Extrai o IP do cliente priorizando headers padrão de proxies.
  *
  * Ordem:
- *   1. `x-vercel-forwarded-for` — a Vercel injeta esse header ela mesma e
- *      sobrescreve qualquer valor vindo do cliente, então não é spoofável
- *      enquanto o app roda atrás da edge da Vercel.
- *   2. `x-forwarded-for` — fallback pra self-host atrás de proxy confiável
- *      ou dev local. ATENÇÃO: se o app estiver exposto diretamente sem um
- *      proxy que normalize este header, ele É spoofável. Por isso só entra
- *      depois do header específico da Vercel.
- *   3. `x-real-ip` — último recurso.
+ *   1. `x-forwarded-for` — Usado por Railway, Heroku, e a maioria dos proxies.
+ *   2. `x-real-ip` — Fallback comum.
  */
 function getClientIp(request) {
-  const vercelIp = request.headers.get("x-vercel-forwarded-for");
-  if (vercelIp) return vercelIp.split(",")[0].trim();
-
   const xff = request.headers.get("x-forwarded-for");
   if (xff) return xff.split(",")[0].trim();
 
   return request.headers.get("x-real-ip") ?? "unknown";
 }
 
+
 /**
  * Mensagem de rate limit adaptada ao tempo de espera:
- *   < 2 min   → "tente em Xs"
- *   < 1 hora  → "tente em X minutos"
- *   >= 1 hora → "você atingiu o limite diário, volte em Xh"
+ *   < 2 min   → \"tente em Xs\"
+ *   < 1 hora  → \"tente em X minutos\"
+ *   >= 1 hora → \"você atingiu o limite diário, volte em Xh\"
  */
 function buildRateLimitMessage(retryAfterSeconds) {
   const s = Number(retryAfterSeconds) || 60;
@@ -234,7 +230,7 @@ function buildRateLimitMessage(retryAfterSeconds) {
  * Estratégia tolerante: se o Gemini economizar descrição ou hashtags em
  * algum variant, usamos fallback em vez de descartar o variant inteiro.
  * Derrubar o variant só porque a description veio vazia resultava em
- * "A IA não retornou resultados válidos" no front — o título é o que
+ * \"A IA não retornou resultados válidos\" no front — o título é o que
  * importa pra UX, o resto recuperamos do primeiro variant que veio cheio.
  */
 function normalizeVariants(raw) {
@@ -256,7 +252,7 @@ function normalizeVariants(raw) {
   if (partial.length === 0) return [];
 
   // Segundo passe: preenche descrição/hashtags vazias com fallback do
-  // primeiro variant que veio completo — mantém o "card inteiro" do UI.
+  // primeiro variant que veio completo — mantém o \"card inteiro\" do UI.
   const withDescription = partial.find((v) => v.description.length > 0);
   const withHashtags = partial.find((v) => v.hashtags.length > 0);
 
@@ -276,7 +272,7 @@ function normalizeVariants(raw) {
  * Sanitiza hashtags vindas do Gemini no formato {tag, level}.
  * - Garante que todas as tags começam com '#'.
  * - Remove duplicadas (case-insensitive), vazias, com espaço interno.
- * - Valida level ∈ {"green","yellow","red"} (default "yellow" se inválido).
+ * - Valida level ∈ {\"green\",\"yellow\",\"red\"} (default \"yellow\" se inválido).
  * - Limita a 15.
  */
 function sanitizeHashtags(raw) {
