@@ -46,7 +46,6 @@ export async function generate({
   const model = ai.getGenerativeModel(
     {
       model: "gemini-1.5-flash",
-      systemInstruction: system,
       generationConfig: {
         temperature,
         maxOutputTokens: maxTokens,
@@ -60,7 +59,7 @@ export async function generate({
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const result = await model.generateContent(user);
+      const result = await model.generateContent([system, user]);
       const response = result.response;
 
       const text = response.text();
