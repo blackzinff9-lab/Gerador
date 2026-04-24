@@ -4,13 +4,14 @@
   "private": true,
   "description": "Gerador gratuito de títulos, hashtags, descrições e estilo de edição virais para YouTube, TikTok e Instagram Reels.",
   "scripts": {
+    "preinstall": "npm cache clean --force",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
-    "@google/generative-ai": "latest",
+    "@google/generative-ai": "0.12.0",
     "next": "^14.2.3",
     "next-auth": "^4.24.14",
     "react": "^18.3.1",
