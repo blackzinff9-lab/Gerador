@@ -7,9 +7,10 @@
 //
 // Limitações IMPORTANTES (deixadas explícitas pra não criar falsa sensação
 // de segurança):
-//   1. Cada instância serverless do Vercel mantém seu PRÓPRIO Map. Um IP
-//      pode pegar instâncias diferentes e ganhar contadores fresh. É uma
-//      proteção "melhor que nada", não um WAF.
+//   1. Cada instância da aplicação (container/serverless function) mantém seu
+//      PRÓPRIO Map. Um IP pode pegar instâncias diferentes em um balanceamento
+//      de carga e ganhar contadores "fresh". É uma proteção "melhor que nada",
+//      não um WAF.
 //   2. Reseta a cada cold start (esperado, e até ajuda usuário legítimo
 //      que ficou bloqueado por engano).
 //   3. Em caso de abuso real em escala, plugue um store externo síncrono
@@ -36,7 +37,7 @@ const PRUNE_THRESHOLD = 1000;               // quando limpar IPs antigos
  *   size            → number de chaves
  *   entries()       → iterável de [key, hits]
  *
- * Um adapter async (Vercel KV / Upstash Redis) exigiria também tornar
+ * Um adapter async (como Redis/KV) exigiria também tornar
  * `checkRateLimit` async. Mantemos sync por enquanto porque a versão
  * in-memory cobre o tráfego atual sem custo extra.
  */
@@ -55,7 +56,7 @@ function createMemoryStore() {
 let store = createMemoryStore();
 
 /**
- * Permite substituir o storage em runtime (ex: ao plugar Vercel KV).
+ * Permite substituir o storage em runtime (ex: ao plugar um KV store).
  * Deve ser chamado UMA VEZ, no boot da aplicação, antes do primeiro hit.
  */
 export function setRateLimitStore(customStore) {
