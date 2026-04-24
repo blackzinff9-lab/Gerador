@@ -49,7 +49,6 @@ export async function generate({
       generationConfig: {
         temperature,
         maxOutputTokens: maxTokens,
-        responseMimeType: "application/json",
       },
     },
     { apiVersion: "v1" }
@@ -57,9 +56,11 @@ export async function generate({
 
   let lastError = null;
 
+  const finalUserPrompt = user + "\n\nResponda obrigatoriamente em formato JSON puro";
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const result = await model.generateContent([system, user]);
+      const result = await model.generateContent([system, finalUserPrompt]);
       const response = result.response;
 
       const text = response.text();
