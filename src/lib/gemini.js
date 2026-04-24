@@ -43,15 +43,18 @@ export async function generate({
   retries = 3,
 }) {
   const ai = getClient();
-  const model = ai.getGenerativeModel({
-    model: "gemini-1.5-flash",
-    systemInstruction: system,
-    generationConfig: {
-      temperature,
-      maxOutputTokens: maxTokens,
-      responseMimeType: "application/json",
+  const model = ai.getGenerativeModel(
+    {
+      model: "gemini-1.5-flash",
+      systemInstruction: system,
+      generationConfig: {
+        temperature,
+        maxOutputTokens: maxTokens,
+        responseMimeType: "application/json",
+      },
     },
-  });
+    { apiVersion: "v1" }
+  );
 
   let lastError = null;
 
@@ -112,7 +115,7 @@ export async function generate({
 
 /**
  * Detecta se um erro do Gemini é de cota esgotada (429 / RESOURCE_EXHAUSTED).
- * Usado para mostrar mensagem "volte amanhã" ao usuário.
+ * Usado para mostrar mensagem \"volte amanhã\" ao usuário.
  */
 export function isQuotaError(err) {
   const msg = String(err?.message ?? "").toLowerCase();
