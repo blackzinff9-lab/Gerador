@@ -49,6 +49,7 @@ export async function generate({
     generationConfig: {
       temperature,
       maxOutputTokens: maxTokens,
+      responseMimeType: "application/json",
     },
   });
 
