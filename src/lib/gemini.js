@@ -43,16 +43,13 @@ export async function generate({
   retries = 3,
 }) {
   const ai = getClient();
-  const model = ai.getGenerativeModel(
-    {
-      model: "gemini-1.5-flash",
-      generationConfig: {
-        temperature,
-        maxOutputTokens: maxTokens,
-      },
+  const model = ai.getGenerativeModel({
+    model: "gemini-pro",
+    generationConfig: {
+      temperature,
+      maxOutputTokens: maxTokens,
     },
-    { apiVersion: "v1" }
-  );
+  });
 
   let lastError = null;
 
