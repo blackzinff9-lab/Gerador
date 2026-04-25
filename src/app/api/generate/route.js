@@ -1,21 +1,21 @@
 // Backend orquestrador do ENGAJAÍ.
 // Fluxo: validação → cache → rate limit → fetch de tendências do YouTube
-//         → prompt → Gemini → filtragem por plataforma → cache → resposta.
-// (Cache vem antes do rate limit: respostas em cache não queimam Gemini,
+//         → prompt → Groq → filtragem por plataforma → cache → resposta.
+// (Cache vem antes do rate limit: respostas em cache não queimam Groq,
 //  então não faz sentido contar contra o limite do usuário.)
 //
 // Estratégia de dados reais:
 //   • YouTube Data API v3 (grátis) = fonte única de sinal real de tendências
 //     por tema. Funciona como proxy da cultura viral — o que bomba no YouTube
 //     em geral também bomba no TikTok/Reels (a cultura viral atravessa redes).
-//   • TikTok / Instagram: sem API gratuita confiável. O Gemini adapta o sinal
+//   • TikTok / Instagram: sem API gratuita confiável. O Groq adapta o sinal
 //     do YouTube + conhecimento próprio para o estilo de cada plataforma.
 
 import { validateGenerateBody } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { cache } from "@/lib/cache";
 import { fetchYouTubeTrends } from "@/lib/youtube";
-import { generate, isQuotaError } from "@/lib/gemini";
+import { generate, isQuotaError } from "@/lib/groq";
 import { SYSTEM_PROMPT, buildUserPrompt } from "@/lib/prompts";
 
 export const maxDuration = 60; // Aumenta o timeout da serverless function para 60s
@@ -23,10 +23,10 @@ export const dynamic = "force-dynamic"; // nunca pré-renderize
 
 const FINAL_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
-// Prefixo v3: novo schema (variants por plataforma — título/descrição/hashtags
+// Prefixo groq1: novo schema (variants por plataforma — título/descrição/hashtags
 // passam a vir por variant). Troca de prefixo invalida automaticamente qualquer
 // cache antigo em warm instances sem precisar limpar nada manualmente.
-const CACHE_PREFIX = "gen3";
+const CACHE_PREFIX = "groq1";
 
 export async function POST(request) {
   // 1) Parse + validação
@@ -47,7 +47,7 @@ export async function POST(request) {
   const ip = getClientIp(request);
 
   // 2) Cache check (resposta final) — vem ANTES do rate limit porque
-  //    cached response não consome quota do Gemini, então não faz sentido
+  //    cached response não consome quota do Groq, então não faz sentido
   //    contar contra o limite do usuário.
   //    A cache key inclui hasVideo/wantsScript pra não servir resposta sem
   //    script a quem pediu script (ou vice-versa).
@@ -64,7 +64,7 @@ export async function POST(request) {
     return Response.json({ ...cached, fromCache: true });
   }
 
-  // 3) Rate limit — só agora, antes da chamada cara ao Gemini.
+  // 3) Rate limit — só agora, antes da chamada cara ao Groq.
   //    Protege a quota do free tier contra abuso (scripts, spam).
   const rl = await checkRateLimit(ip);
   if (!rl.allowed) {
@@ -94,7 +94,7 @@ export async function POST(request) {
     wantsScript,
   });
 
-  // 6) Chamar Gemini
+  // 6) Chamar Groq
   let generated;
   try {
     generated = await generate({
@@ -102,17 +102,17 @@ export async function POST(request) {
       user: userPrompt,
     });
   } catch (err) {
-    console.error("[api/generate] Gemini error:", err?.message);
+    console.error("[api/generate] Groq error:", err?.message);
     if (isQuotaError(err)) {
       return errorResponse(
         503,
-        "GEMINI_QUOTA_EXHAUSTED",
+        "GROQ_QUOTA_EXHAUSTED",
         "Atingimos o limite diário de gerações. Volte amanhã ou tente mais tarde."
       );
     }
     return errorResponse(
       502,
-      "GEMINI_FAILED",
+      "GROQ_FAILED",
       "Não conseguimos gerar ideias agora. Tente de novo em alguns segundos."
     );
   }
@@ -135,12 +135,12 @@ export async function POST(request) {
   if (filtered.platforms.length === 0) {
     return errorResponse(
       502,
-      "GEMINI_FAILED",
+      "GROQ_FAILED",
       "A IA não retornou resultados válidos. Tente de novo."
     );
   }
 
-  // 7.5) Roteiro (opcional): só repassa se o user pediu E se o Gemini devolveu.
+  // 7.5) Roteiro (opcional): só repassa se o user pediu E se o Groq devolveu.
   let script = null;
   if (wantsScript && generated?.script && typeof generated.script === "object") {
     const s = generated.script;

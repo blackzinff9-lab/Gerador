@@ -56,7 +56,7 @@ export function validateGenerateBody(body) {
     ok: true,
     data: {
       platform,        // escolha bruta ("all" ou específica)
-      platforms,       // lista expandida para o Gemini
+      platforms,       // lista expandida para a Groq
       topic,
       language,
       hasVideo,

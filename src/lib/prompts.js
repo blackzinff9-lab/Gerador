@@ -1,4 +1,4 @@
-// System prompt + construtor de prompt do usuário para o Gemini.
+// System prompt + construtor de prompt do usuário para a Groq.
 // Tudo em pt-BR para dar coerência cultural nas saídas brasileiras.
 
 export const SYSTEM_PROMPT = `Você é um especialista em marketing viral de vídeo para criadores de conteúdo. Sua única tarefa é gerar ideias VIRAIS e ESPECÍFICAS por plataforma, nunca genéricas.
@@ -81,7 +81,7 @@ REGRAS ABSOLUTAS:
 
 /**
  * Constrói o prompt de usuário injetando contexto real de tendências
- * do YouTube (quando disponível). TikTok/Reels são adaptados pelo Gemini
+ * do YouTube (quando disponível). TikTok/Reels são adaptados pela Groq
  * a partir do sinal do YouTube + conhecimento próprio.
  *
  * @param {object} params

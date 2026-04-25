@@ -6,24 +6,24 @@
 // nicho que puxam o mesmo público, aumentando retenção do canal.
 //
 // Fluxo idêntico ao /api/generate:
-//   validação → cache → rate limit → Gemini → sanitização → resposta.
+//   validação → cache → rate limit → Groq → sanitização → resposta.
 
 import { validateIdeasBody } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { cache } from "@/lib/cache";
-import { generate, isQuotaError } from "@/lib/gemini";
+import { generate, isQuotaError } from "@/lib/groq";
 import { IDEAS_SYSTEM_PROMPT, buildIdeasPrompt } from "@/lib/prompts";
 import { ideasResponseSchema } from "@/lib/schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // Vercel Hobby permite até 60s. Ficamos longe desse limite na prática, mas 30s
-// era apertado quando o Gemini demorava um pouco e causava 504 no front —
+// era apertado quando o Groq demorava um pouco e causava 504 no front —
 // chega como "erro" genérico pro usuário. 60s dá folga.
 export const maxDuration = 60;
 
 const IDEAS_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
-const CACHE_PREFIX = "ideas3";                 // v3 — após hardening do endpoint
+const CACHE_PREFIX = "ideas-groq1";
 
 export async function POST(request) {
   // 1) Parse + validação
@@ -60,7 +60,7 @@ export async function POST(request) {
     return Response.json({ ...cached, fromCache: true });
   }
 
-  // 3) Rate limit — mesma conta do /api/generate (é uma chamada Gemini).
+  // 3) Rate limit — mesma conta do /api/generate (é uma chamada Groq).
   const rl = checkRateLimit(ip);
   if (!rl.allowed) {
     return errorResponse(
@@ -79,25 +79,21 @@ export async function POST(request) {
       system: IDEAS_SYSTEM_PROMPT,
       user: userPrompt,
       schema: ideasResponseSchema,
-      // 8192 em vez de 4096. O schema pede EXATAMENTE 10 itens e, se o
-      // modelo "caprichar" em ganchos mais descritivos, um token limit
-      // baixo podia cortar o JSON no meio. 8192 é uma folga gigantesca que
-      // não custa nada a mais no free-tier do Gemini 1.5 Flash.
       maxTokens: 8192,
       temperature: 0.9, // ligeiramente mais criativo pra variedade entre as 10
     });
   } catch (err) {
-    console.error("[api/ideas] Gemini error:", err?.message);
+    console.error("[api/ideas] Groq error:", err?.message);
     if (isQuotaError(err)) {
       return errorResponse(
         503,
-        "GEMINI_QUOTA_EXHAUSTED",
+        "GROQ_QUOTA_EXHAUSTED",
         "Atingimos o limite diário de gerações. Volte amanhã ou tente mais tarde."
       );
     }
     return errorResponse(
       502,
-      "GEMINI_FAILED",
+      "GROQ_FAILED",
       "A IA demorou demais ou falhou ao gerar as 10 ideias. Tente de novo em alguns segundos."
     );
   }
@@ -115,7 +111,7 @@ export async function POST(request) {
     );
     return errorResponse(
       502,
-      "GEMINI_FAILED",
+      "GROQ_FAILED",
       "A IA não retornou ideias suficientes. Tente de novo."
     );
   }
