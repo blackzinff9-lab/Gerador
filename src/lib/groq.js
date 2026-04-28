@@ -59,7 +59,7 @@ export async function generate({
                 content: user,
             },
         ],
-        model: "llama-3.3-70b-versatile", // Or other model like "mixtral-8x7b-32768"
+        model: "llama-3.1-8b-instant", // Or other model like "mixtral-8x7b-32768"
         temperature,
         max_tokens: maxTokens,
         top_p: 1,
