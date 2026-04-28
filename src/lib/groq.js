@@ -59,7 +59,7 @@ export async function generate({
                 content: user,
             },
         ],
-        model: "llama3-70b-8192", // Or other model like "mixtral-8x7b-32768"
+        model: "llama-3.3-70b-versatile", // Or other model like "mixtral-8x7b-32768"
         temperature,
         max_tokens: maxTokens,
         top_p: 1,
@@ -89,41 +89,15 @@ export async function generate({
           "tail:",
           tail
         );
-        throw new Error("Groq's response is not valid JSON (possibly truncated).");
+        lastError = err;
+        await sleep(1000 * attempt);
+        continue;
       }
-    } catch (error) {
-      lastError = error;
-
-      if (isQuotaError(error)) {
-        console.error("[groq] Quota error, not retrying.", error.message);
-        throw error; // Fail immediately on quota errors
-      }
-
-      if (attempt < retries) {
-        const delay = 1000 * Math.pow(2, attempt - 1); // 1s, 2s
-        console.warn(
-          `[groq] Attempt ${attempt}/${retries} failed. Retrying in ${delay}ms...`,
-          error.message
-        );
-        await sleep(delay);
-      }
+    } catch (err) {
+      console.error(`[groq] error on attempt ${attempt}/${retries}:`, err);
+      lastError = err;
+      await sleep(1500 * attempt); // wait longer for network issues
     }
   }
-
-  console.error(`[groq] All ${retries} retries failed.`);
-  throw lastError; // Throw the last error after all retries have failed
-}
-
-/**
- * Detects if a Groq error is due to an exhausted quota (429).
- * Used to show a "come back tomorrow" message to the user.
- */
-export function isQuotaError(err) {
-  const msg = String(err?.message ?? "").toLowerCase();
-  const status = err?.status;
-  return (
-    status === 429 ||
-    msg.includes("quota") ||
-    msg.includes("rate limit")
-  );
+  throw lastError;
 }
