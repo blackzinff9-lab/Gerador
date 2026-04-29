@@ -103,7 +103,8 @@ export async function POST(request) {
       user: userPrompt,
     });
   } catch (err) {
-    console.error("[api/generate] Groq error:", err?.message);
+    console.error("Error details:", err);
+    console.error("[api/generate] Groq error:", err);
     if (isQuotaError(err)) {
       return new NextResponse(JSON.stringify({ error: "Limite de processamento atingido. Por favor, aguarde um momento." }), { status: 429 });
     }
