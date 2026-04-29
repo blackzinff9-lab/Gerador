@@ -17,6 +17,7 @@ import { cache } from "@/lib/cache";
 import { fetchYouTubeTrends } from "@/lib/youtube";
 import { generate, isQuotaError } from "@/lib/groq";
 import { SYSTEM_PROMPT, buildUserPrompt } from "@/lib/prompts";
+import { NextResponse } from 'next/server';
 
 export const maxDuration = 60; // Aumenta o timeout da serverless function para 60s
 export const dynamic = "force-dynamic"; // nunca pré-renderize
@@ -104,11 +105,7 @@ export async function POST(request) {
   } catch (err) {
     console.error("[api/generate] Groq error:", err?.message);
     if (isQuotaError(err)) {
-      return errorResponse(
-        503,
-        "GROQ_QUOTA_EXHAUSTED",
-        "Atingimos o limite diário de gerações. Volte amanhã ou tente mais tarde."
-      );
+      return new NextResponse(JSON.stringify({ error: "Limite de processamento atingido. Por favor, aguarde um momento." }), { status: 429 });
     }
     return errorResponse(
       502,

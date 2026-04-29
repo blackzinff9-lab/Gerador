@@ -59,7 +59,7 @@ export async function generate({
                 content: user,
             },
         ],
-        model: "llama-3.1-8b-instant", // Or other model like "mixtral-8x7b-32768"
+        model: "meta-llama/llama-4-scout-17b-16e-instruct", // Or other model like "mixtral-8x7b-32768"
         temperature,
         max_tokens: maxTokens,
         top_p: 1,
@@ -110,5 +110,5 @@ export async function generate({
 export function isQuotaError(error) {
   // Groq SDK throws an APIError with a status property.
   // 429 indicates "Too Many Requests", which is used for rate limiting and quota.
-  return error?.status === 429;
+  return error?.status === 429 || error?.status === 413;
 }
