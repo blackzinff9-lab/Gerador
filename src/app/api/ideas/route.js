@@ -26,6 +26,7 @@ const IDEAS_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 const CACHE_PREFIX = "ideas-groq1";
 
 export async function POST(request) {
+  console.log("Accessed /api/ideas endpoint");
   // 1) Parse + validação
   let body;
   try {

@@ -7,4 +7,12 @@ import { authOptions } from "@/lib/auth";
 
 const handler = NextAuth(authOptions);
 
-export { handler as GET, handler as POST };
+export async function GET(request, context) {
+  console.log(`Accessed GET ${request.nextUrl.pathname}`);
+  return handler(request, context);
+}
+
+export async function POST(request, context) {
+  console.log(`Accessed POST ${request.nextUrl.pathname}`);
+  return handler(request, context);
+}

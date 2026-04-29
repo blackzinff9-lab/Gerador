@@ -16,6 +16,7 @@ function sanitizeJsonString(str) {
 
 // Função principal da API
 export async function POST(request) {
+  console.log("Accessed /api/generate endpoint");
   try {
     // 1. Validação da Chave de API
     if (!process.env.GROQ_API_KEY) {
