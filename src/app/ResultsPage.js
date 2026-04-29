@@ -42,7 +42,6 @@ export default function ResultsPage({ payload }) {
         body: JSON.stringify(payload),
       });
 
-      // Adicionado para depuração: ler como texto primeiro.
       const responseText = await res.text();
       console.log('Dados recebidos no front:', responseText);
 
@@ -61,9 +60,18 @@ export default function ResultsPage({ payload }) {
           json?.error?.message ??
             "Algo deu errado do nosso lado. Tente de novo em instantes."
         );
+        setLoading(false);
         return;
       }
       
+      // Validação crucial da estrutura da resposta
+      if (typeof json.data !== 'object' || !json.data || !Array.isArray(json.data.platforms)) {
+        console.error("Estrutura de dados inválida recebida da API", json.data);
+        setError("A IA retornou uma resposta inesperada. Não consegui encontrar a lista de plataformas nos dados recebidos.");
+        setLoading(false);
+        return;
+      }
+
       setResult(json.data);
 
       if (user) {
