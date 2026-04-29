@@ -5,10 +5,8 @@ import { validateGenerateBody } from "@/lib/validation";
 import { fetchYouTubeTrends } from "@/lib/youtube";
 import { SYSTEM_PROMPT, buildUserPrompt } from "@/lib/prompts";
 import { z } from 'zod';
-import { schema } from '@/lib/schema';
+import { responseSchema as schema } from '@/lib/schema';
 
-// Use o Edge Runtime para melhor performance e menos dependências de Node.js
-export const runtime = 'edge';
 export const dynamic = "force-dynamic";
 
 // Função para sanitizar o JSON, removendo caracteres de controle inválidos
@@ -38,7 +36,7 @@ export async function POST(request) {
     try {
       youtubeContext = await fetchYouTubeTrends(topic, language);
     } catch (err) {
-      console.error("[Edge API] YouTube fetch error:", err.message);
+      console.error("[API] YouTube fetch error:", err.message);
       // Não bloqueia a execução, apenas loga o erro.
     }
 
@@ -58,7 +56,7 @@ export async function POST(request) {
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userPrompt },
       ],
-      model: "llama-4-scout", // Modelo especificado pelo usuário
+      model: "llama3-8b-8192", // Llama 3, conforme documentação
       temperature: 0.7,
       max_tokens: 4096,
       top_p: 1,
@@ -81,7 +79,7 @@ export async function POST(request) {
       usedRealData: {
         youtube: youtubeContext.length > 0,
       },
-      fromCache: false, // Cache desativado no Edge por simplicidade
+      fromCache: false, // Cache desativado por simplicidade
     };
 
     // 7. Retorno da Resposta
@@ -89,7 +87,7 @@ export async function POST(request) {
 
   } catch (error) {
     // 8. Tratamento de Erros
-    console.error("[Edge API] CATCH-ALL ERROR:", error);
+    console.error("[API] CATCH-ALL ERROR:", error);
     // Retorna o erro detalhado para facilitar a depuração no lado do cliente
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
