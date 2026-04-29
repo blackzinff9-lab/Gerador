@@ -30,7 +30,7 @@ function getClient() {
  * @param {string} params.system       - system instruction
  * @param {string} params.user         - user prompt
  * @param {object} [params.schema]     - response schema (not directly used by Groq but kept for compatibility).
- * @param {number} [params.maxTokens]  - output token limit. Default 8192.
+ * @param {number} [params.maxTokens]  - output token limit. Default 4096.
  * @param {number} [params.temperature] - creativity. Default 0.85.
  * @param {number} [params.retries] - number of retries. Default 3.
  */
@@ -38,7 +38,7 @@ export async function generate({
   system,
   user,
   schema = responseSchema, // schema is not used by Groq but we keep it for now.
-  maxTokens = 8192,
+  maxTokens = 4096,
   temperature = 0.85,
   retries = 3,
 }) {
@@ -100,4 +100,15 @@ export async function generate({
     }
   }
   throw lastError;
+}
+
+/**
+ * Checks if an error is a Groq quota error (HTTP 429).
+ * @param {any} error The error object.
+ * @returns {boolean}
+ */
+export function isQuotaError(error) {
+  // Groq SDK throws an APIError with a status property.
+  // 429 indicates "Too Many Requests", which is used for rate limiting and quota.
+  return error?.status === 429;
 }
