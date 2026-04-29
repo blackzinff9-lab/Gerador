@@ -42,7 +42,19 @@ export default function ResultsPage({ payload }) {
         body: JSON.stringify(payload),
       });
 
-      const json = await res.json();
+      // Adicionado para depuração: ler como texto primeiro.
+      const responseText = await res.text();
+      console.log('Dados recebidos no front:', responseText);
+
+      let json;
+      try {
+        json = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("Falha ao analisar o JSON:", parseError);
+        setError(`A resposta da IA não é um JSON válido. Resposta recebida: "${responseText}"`);
+        setLoading(false);
+        return;
+      }
 
       if (!res.ok || !json.ok) {
         setError(
@@ -51,7 +63,7 @@ export default function ResultsPage({ payload }) {
         );
         return;
       }
-      console.log(json.data)
+      
       setResult(json.data);
 
       if (user) {
