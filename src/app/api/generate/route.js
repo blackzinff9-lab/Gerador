@@ -56,7 +56,7 @@ export async function POST(request) {
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userPrompt },
       ],
-      model: "llama3-8b-8192", // Llama 3, conforme documentação
+      model: "meta-llama/llama-4-scout-17b-16e-instruct", // Modelo Scout, conforme logs do Railway
       temperature: 0.7,
       max_tokens: 4096,
       top_p: 1,
